@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>remotestorage</id>
+	<name>remoteStorage</name>
+	<summary>Use your Nextcloud as remoteStorage for any remoteStorage app</summary>
+	<description><![CDATA[Makes Nextcloud a [remoteStorage](https://remotestorage.io) server. Users connect any remoteStorage app with their address `user@your-nextcloud`, approve the access it asks for, and the app's data is stored as normal files in their Nextcloud.
+
+The app only fills the gaps: WebFinger discovery, an OAuth consent page with per-folder scopes, and remoteStorage folder listings and CORS on Nextcloud's own WebDAV. All file operations, ETags, versions, quotas and trash are Nextcloud's.]]></description>
+	<version>0.1.0</version>
+	<licence>agpl</licence>
+	<author homepage="https://github.com/jonocodes">Jono</author>
+	<namespace>RemoteStorage</namespace>
+	<category>files</category>
+	<category>integration</category>
+	<website>https://github.com/jonocodes/nextcloud-remotestorage</website>
+	<bugs>https://github.com/jonocodes/nextcloud-remotestorage/issues</bugs>
+	<repository>https://github.com/jonocodes/nextcloud-remotestorage</repository>
+	<dependencies>
+		<php min-version="8.2"/>
+		<nextcloud min-version="34" max-version="35"/>
+	</dependencies>
+	<commands>
+		<command>OCA\RemoteStorage\Command\IssueToken</command>
+	</commands>
+	<settings>
+		<personal>OCA\RemoteStorage\Settings\Personal</personal>
+	</settings>
+</info>

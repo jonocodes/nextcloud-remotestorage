@@ -1,0 +1,31 @@
+{
+	"name": "jonocodes/nextcloud-remotestorage",
+	"description": "Nextcloud app that makes Nextcloud a remoteStorage server",
+	"license": "AGPL-3.0-or-later",
+	"type": "project",
+	"require": {
+		"php": ">=8.2"
+	},
+	"require-dev": {
+		"nextcloud/ocp": "v34.0.4",
+		"phpunit/phpunit": "^11.5",
+		"sabre/dav": "^4.7"
+	},
+	"autoload": {
+		"psr-4": {
+			"OCA\\RemoteStorage\\": "lib/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"OCA\\RemoteStorage\\Tests\\": "tests/",
+			"OCP\\": "vendor/nextcloud/ocp/OCP/"
+		}
+	},
+	"config": {
+		"platform": {
+			"php": "8.2"
+		},
+		"sort-packages": true
+	}
+}

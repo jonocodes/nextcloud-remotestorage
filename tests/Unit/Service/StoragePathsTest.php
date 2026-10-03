@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OCA\RemoteStorage\Tests\Unit\Service;
+
+use OCA\RemoteStorage\Service\StoragePaths;
+use PHPUnit\Framework\TestCase;
+
+class StoragePathsTest extends TestCase {
+	private StoragePaths $paths;
+
+	protected function setUp(): void {
+		$this->paths = new StoragePaths('remoteStorage');
+	}
+
+	public function testDocument(): void {
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a.txt');
+		$this->assertSame('alice', $m->uid);
+		$this->assertSame('/notes/a.txt', $m->rel);
+		$this->assertSame('notes', $m->module);
+		$this->assertFalse($m->folder);
+		$this->assertFalse($m->public);
+	}
+
+	public function testTrailingSlashMakesAFolder(): void {
+		$this->assertTrue($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/')->folder);
+		$this->assertFalse($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes')->folder);
+	}
+
+	public function testRoot(): void {
+		foreach (['/remote.php/dav/files/alice/remoteStorage', '/remote.php/dav/files/alice/remoteStorage/'] as $url) {
+			$m = $this->paths->match($url);
+			$this->assertSame('/', $m->rel);
+			$this->assertTrue($m->folder);
+			$this->assertNull($m->module);
+		}
+	}
+
+	public function testPublicPathsUseTheSecondSegmentAsModule(): void {
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/public/notes/a.txt');
+		$this->assertTrue($m->public);
+		$this->assertSame('notes', $m->module);
+		$public = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/public/');
+		$this->assertTrue($public->public);
+		$this->assertNull($public->module);
+	}
+
+	public function testDecodesPercentEncoding(): void {
+		$m = $this->paths->match('/remote.php/dav/files/al%20ice/remoteStorage/notes/a%20b.txt');
+		$this->assertSame('al ice', $m->uid);
+		$this->assertSame('/notes/a b.txt', $m->rel);
+	}
+
+	public function testIgnoresTheQueryString(): void {
+		$this->assertSame('/notes/a.txt', $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a.txt?x=1')->rel);
+	}
+
+	public function testOutsideTheRootIsNull(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/other/a.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorageX/a.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/'));
+		$this->assertNull($this->paths->match('/remote.php/dav/calendars/alice/remoteStorage/'));
+	}
+
+	public function testRejectsDotSegments(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/../../secret'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/./notes'));
+	}
+
+	public function testStorageUrlPath(): void {
+		$this->assertSame('/remote.php/dav/files/al%20ice/remoteStorage', $this->paths->storagePath('al ice'));
+	}
+
+	public function testDavPathsForParentsOfADocument(): void {
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a/b.txt');
+		$this->assertSame(
+			['files/alice/remoteStorage', 'files/alice/remoteStorage/notes', 'files/alice/remoteStorage/notes/a'],
+			$this->paths->parentDavPaths($m)
+		);
+	}
+}
