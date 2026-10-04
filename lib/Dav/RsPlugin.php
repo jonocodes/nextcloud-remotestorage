@@ -7,6 +7,8 @@ namespace OCA\RemoteStorage\Dav;
 use OCA\DAV\Connector\Sabre\File;
 use OCA\DAV\Connector\Sabre\Node;
 use OCA\RemoteStorage\Service\AccessPolicy;
+use OCA\RemoteStorage\Service\ContentTypeService;
+use OCA\RemoteStorage\Service\ETagHeader;
 use OCA\RemoteStorage\Service\Listing;
 use OCA\RemoteStorage\Service\StorageMatch;
 use OCA\RemoteStorage\Service\StoragePaths;
@@ -15,6 +17,7 @@ use Sabre\DAV\Exception\Forbidden;
 use Sabre\DAV\Exception\MethodNotAllowed;
 use Sabre\DAV\Exception\NotFound;
 use Sabre\DAV\ICollection;
+use Sabre\DAV\INode;
 use Sabre\DAV\Server;
 use Sabre\DAV\ServerPlugin;
 use Sabre\HTTP\RequestInterface;
@@ -33,10 +36,15 @@ class RsPlugin extends ServerPlugin {
 	private const EXPOSE_HEADERS = 'ETag, Content-Type, Content-Length, Content-Range, Last-Modified';
 
 	private Server $server;
+	/** ETag of the document before this PUT, to detect writes Nextcloud gives no new ETag. */
+	private ?string $etagBeforePut = null;
+	/** Set when folderGet answered for a folder that does not exist (see finishMissingFolder). */
+	private bool $answeredMissingFolder = false;
 
 	public function __construct(
 		private StoragePaths $paths,
 		private RequestState $state,
+		private ContentTypeService $contentTypes,
 	) {
 	}
 
@@ -50,29 +58,39 @@ class RsPlugin extends ServerPlugin {
 		$server->on('beforeMethod:*', [$this, 'cors'], 5);
 		// After auth (10).
 		$server->on('beforeMethod:*', [$this, 'enforce'], 20);
+		$server->on('beforeMethod:*', [$this, 'prepare'], 25);
 		// Before Sabre checks preconditions and handles the PUT.
 		$server->on('beforeMethod:PUT', [$this, 'createParents'], 30);
+		$server->on('beforeMethod:PUT', [$this, 'rememberETag'], 31);
 		// Before Sabre's CorePlugin GET (100).
 		$server->on('method:GET', [$this, 'folderGet'], 50);
-		$server->on('afterMethod:DELETE', [$this, 'pruneParents'], 50);
+		// Before other apps' afterMethod:GET hooks (default 100).
+		$server->on('afterMethod:GET', [$this, 'finishMissingFolder'], 1);
+		$server->on('afterMethod:GET', [$this, 'documentContentType'], 50);
+		$server->on('afterMethod:PUT', [$this, 'afterPut'], 50);
+		$server->on('afterMethod:DELETE', [$this, 'afterDelete'], 50);
 	}
 
 	public function cors(RequestInterface $request, ResponseInterface $response): ?bool {
-		if (empty($request->getHeader('Origin')) || $this->paths->match($request->getUrl()) === null
+		$origin = (string)$request->getHeader('Origin');
+		if ($origin === '' || $this->paths->match($request->getUrl()) === null
 			|| $response->hasHeader('Access-Control-Allow-Origin')) {
 			return null;
 		}
-		// Preflights carry no credentials. Actual requests: only bearer-token or
-		// anonymous ones (a bad token's 401 must be readable); Basic-auth
-		// requests keep core's behaviour exactly.
+		// Only bearer-token or anonymous requests (a bad token's 401 must be
+		// readable); Basic-auth requests keep core's behaviour exactly.
 		$auth = (string)$request->getHeader('Authorization');
 		if ($auth !== '' && !str_starts_with($auth, 'Bearer ')) {
 			return null;
 		}
-		// "*", never a reflected origin: browsers then never send cookies.
-		$response->setHeader('Access-Control-Allow-Origin', '*');
+		// The origin is echoed, never with Access-Control-Allow-Credentials,
+		// so browsers never send cookies with these requests.
+		$response->setHeader('Access-Control-Allow-Origin', $origin);
+		$response->addHeader('Vary', 'Origin');
 		$response->setHeader('Access-Control-Expose-Headers', self::EXPOSE_HEADERS);
-		if ($request->getMethod() === 'OPTIONS' && $auth === '') {
+		// A preflight is answered before any authentication, even if it
+		// carries a token (browsers never send one; some clients do).
+		if ($request->getMethod() === 'OPTIONS') {
 			$response->setHeader('Access-Control-Allow-Methods', self::METHODS);
 			$response->setHeader('Access-Control-Allow-Headers', self::ALLOW_HEADERS);
 			$response->setHeader('Access-Control-Max-Age', '600');
@@ -97,6 +115,25 @@ class RsPlugin extends ServerPlugin {
 		}
 		if ($decision !== AccessPolicy::ALLOW) {
 			throw new Forbidden('outside the scope of this remoteStorage token');
+		}
+	}
+
+	/**
+	 * Undoes what response compression does to ETags (see ETagHeader), and on
+	 * Apache with mod_php asks it not to compress remoteStorage responses at all.
+	 */
+	public function prepare(RequestInterface $request, ResponseInterface $response): void {
+		if (!$this->state->isRemoteStorageLogin()) {
+			return;
+		}
+		foreach (['If-Match', 'If-None-Match'] as $name) {
+			$value = $request->getHeader($name);
+			if ($value !== null) {
+				$request->setHeader($name, ETagHeader::normalize($value));
+			}
+		}
+		if (in_array($request->getMethod(), ['GET', 'HEAD'], true) && function_exists('apache_setenv')) {
+			apache_setenv('no-gzip', '1');
 		}
 	}
 
@@ -126,13 +163,22 @@ class RsPlugin extends ServerPlugin {
 		}
 	}
 
+	public function rememberETag(RequestInterface $request, ResponseInterface $response): void {
+		$this->etagBeforePut = null;
+		if ($this->ownMatch($request) !== null && $this->server->tree->nodeExists($request->getPath())) {
+			$node = $this->server->tree->getNodeForPath($request->getPath());
+			$this->etagBeforePut = $node instanceof Node ? $node->getETag() : null;
+		}
+	}
+
 	public function folderGet(RequestInterface $request, ResponseInterface $response): ?bool {
 		if (!$this->state->isRemoteStorageLogin()) {
 			return null;
 		}
 		$match = $this->ownMatch($request);
-		$node = $this->server->tree->getNodeForPath($request->getPath());
-		if (!$node instanceof ICollection) {
+		$tree = $this->server->tree;
+		$node = $tree->nodeExists($request->getPath()) ? $tree->getNodeForPath($request->getPath()) : null;
+		if ($node !== null && !$node instanceof ICollection) {
 			if ($match !== null && $match->folder) {
 				throw new NotFound('not a folder');
 			}
@@ -155,20 +201,34 @@ class RsPlugin extends ServerPlugin {
 				return false;
 			}
 		}
+		// Missing and empty folders both list as empty (spec: GET on an empty
+		// folder SHOULD return a description with no items).
 		$listing = new Listing();
-		foreach ($node->getChildren() as $child) {
+		$documents = [];
+		foreach ($node === null ? [] : $node->getChildren() as $child) {
 			if ($child instanceof ICollection && $child instanceof Node) {
-				$listing->addFolder($child->getName(), $child->getETag());
+				// An empty folder MUST NOT be listed in its parent.
+				if (self::containsDocument($child)) {
+					$listing->addFolder($child->getName(), $child->getETag());
+				}
 			} elseif ($child instanceof File) {
-				$listing->addDocument(
-					$child->getName(),
-					$child->getETag(),
-					(string)$child->getContentType(),
-					(int)$child->getSize(),
-					(int)$child->getLastModified()
-				);
+				$documents[] = $child;
 			}
 		}
+		$types = $this->contentTypes->forNodes(array_combine(
+			array_map(static fn (File $f): int => (int)$f->getId(), $documents),
+			array_map(static fn (File $f): string => $f->getETag(), $documents)
+		) ?: []);
+		foreach ($documents as $document) {
+			$listing->addDocument(
+				$document->getName(),
+				$document->getETag(),
+				$types[(int)$document->getId()] ?? (string)$document->getContentType(),
+				(int)$document->getSize(),
+				(int)$document->getLastModified()
+			);
+		}
+		$this->answeredMissingFolder = $node === null;
 		$response->setStatus(200);
 		$response->setHeader('Content-Type', 'application/ld+json');
 		$response->setHeader('Cache-Control', 'no-cache');
@@ -176,8 +236,67 @@ class RsPlugin extends ServerPlugin {
 		return false;
 	}
 
-	/** remoteStorage DELETE removes parent folders left empty, up to (not including) the root. */
-	public function pruneParents(RequestInterface $request, ResponseInterface $response): void {
+	/**
+	 * A missing folder lists as empty, but other apps' afterMethod:GET hooks
+	 * (Files_Trashbin's TrashbinPlugin) look the path up without handling
+	 * NotFound and would turn the answer into a 404. Send it now and stop there,
+	 * as for preflights.
+	 */
+	public function finishMissingFolder(RequestInterface $request, ResponseInterface $response): ?bool {
+		// Real GETs only: HEAD runs GET as a sub-request whose response Sabre sends itself.
+		if (!$this->answeredMissingFolder || $this->server->httpRequest->getMethod() !== 'GET') {
+			return null;
+		}
+		Sapi::sendResponse($response);
+		return false;
+	}
+
+	/** GET/HEAD of a document: the Content-Type it was PUT with, and no caching. */
+	public function documentContentType(RequestInterface $request, ResponseInterface $response): void {
+		$match = $this->ownMatch($request);
+		if ($match === null || $match->folder || !in_array($response->getStatus(), [200, 206, 304], true)
+			|| !$this->server->tree->nodeExists($request->getPath())) {
+			return;
+		}
+		$node = $this->server->tree->getNodeForPath($request->getPath());
+		if (!$node instanceof File) {
+			return;
+		}
+		$type = $this->contentTypes->forNode((int)$node->getId(), $node->getETag());
+		if ($type !== null && $response->getStatus() !== 304) {
+			$response->setHeader('Content-Type', $type);
+		}
+		$response->setHeader('Cache-Control', 'no-cache');
+	}
+
+	/** Stores the PUT's Content-Type; remoteStorage answers 200/201, not 204. */
+	public function afterPut(RequestInterface $request, ResponseInterface $response): void {
+		if ($this->ownMatch($request) === null || $response->getStatus() >= 300) {
+			return;
+		}
+		$node = $this->server->tree->getNodeForPath($request->getPath());
+		$etag = (string)($response->getHeader('ETag') ?? ($node instanceof Node ? $node->getETag() : ''));
+		// Nextcloud's local storage derives a file's ETag from mtime (whole seconds),
+		// inode, device and size, so a same-size overwrite within a second keeps
+		// the old ETag and If-Match can no longer tell the versions apart.
+		if ($node instanceof File && $this->etagBeforePut !== null && $etag !== ''
+			&& Listing::bareETag($etag) === Listing::bareETag($this->etagBeforePut)) {
+			$etag = '"' . self::forceNewETag($node) . '"';
+			$response->setHeader('ETag', $etag);
+		}
+		if ($node instanceof File && $etag !== '') {
+			$this->contentTypes->remember((int)$node->getId(), $etag, (string)$request->getHeader('Content-Type'));
+		}
+		if ($response->getStatus() === 204) {
+			$response->setStatus(200);
+		}
+	}
+
+	/**
+	 * remoteStorage DELETE removes parent folders left empty, up to (not
+	 * including) the root, and answers 200, not 204.
+	 */
+	public function afterDelete(RequestInterface $request, ResponseInterface $response): void {
 		$match = $this->ownMatch($request);
 		if ($match === null || $response->getStatus() >= 300) {
 			return;
@@ -190,9 +309,12 @@ class RsPlugin extends ServerPlugin {
 			}
 			$node = $tree->getNodeForPath($path);
 			if (!$node instanceof ICollection || $node->getChildren() !== []) {
-				return;
+				break;
 			}
 			$tree->delete($path);
+		}
+		if ($response->getStatus() === 204) {
+			$response->setStatus(200);
 		}
 	}
 
@@ -202,6 +324,29 @@ class RsPlugin extends ServerPlugin {
 		}
 		$match = $this->paths->match($request->getUrl());
 		return $match !== null && $match->uid === $this->state->uid ? $match : null;
+	}
+
+	/** Gives a document a fresh unique ETag and propagates the change to its folders (public API only). */
+	private static function forceNewETag(File $file): string {
+		$node = $file->getNode();
+		$storage = $node->getStorage();
+		$etag = bin2hex(random_bytes(16));
+		$storage->getCache()->update($node->getId(), ['etag' => $etag]);
+		$storage->getPropagator()->propagateChange($node->getInternalPath(), time());
+		return $etag;
+	}
+
+	/** A folder "exists" for remoteStorage if its subtree holds at least one document. */
+	private static function containsDocument(INode $folder): bool {
+		if ($folder instanceof Node && (int)$folder->getSize() > 0) {
+			return true;
+		}
+		foreach ($folder instanceof ICollection ? $folder->getChildren() : [] as $child) {
+			if (!$child instanceof ICollection || self::containsDocument($child)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static function matchesETag(string $ifNoneMatch, string $etag): bool {
