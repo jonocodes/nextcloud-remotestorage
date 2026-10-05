@@ -74,7 +74,7 @@ Nextcloud's public extension points. Every file operation stays with Nextcloud's
 | WebFinger | `OCP\Http\WellKnown\IHandler` | Answers `acct:user@host` with the storage URL (`/remote.php/dav/files/<user>/remoteStorage`) and the OAuth URL. |
 | OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2). `client_id` must be the origin of `redirect_uri`. |
 | Login | `SabrePluginAuthInitEvent` | Accepts the app's own `rs_…` bearer tokens, for that request only (nothing is written to the session). Other bearer tokens pass through to core untouched. A rejected `rs_…` token is answered with a `WWW-Authenticate: Bearer` challenge (RFC 6750 §3), next to core's; Basic-auth requests are untouched. |
-| WebDAV plugin | `SabrePluginAddEvent` | Scope checks; folder GET → remoteStorage JSON listing (empty and missing folders list as empty; empty subfolders are not listed); PUT creates missing parents; DELETE removes emptied parents; `If-None-Match` 304 on folders; CORS; the details below. |
+| WebDAV plugin | `SabrePluginAddEvent` | Scope checks; folder GET → remoteStorage JSON listing (empty and missing folders list as empty; empty subfolders are not listed); PUT creates missing parents; DELETE leaves emptied parents on disk; `If-None-Match` 304 on folders; CORS; the details below. |
 
 Where Nextcloud's WebDAV differs from the remoteStorage spec, the plugin corrects it for
 remoteStorage requests only:
