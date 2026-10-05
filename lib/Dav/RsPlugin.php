@@ -31,9 +31,9 @@ use Sabre\HTTP\Sapi;
  * with Nextcloud's WebDAV.
  */
 class RsPlugin extends ServerPlugin {
-	private const METHODS = 'GET, HEAD, PUT, DELETE, OPTIONS';
-	private const ALLOW_HEADERS = 'Authorization, Content-Type, Content-Length, If-Match, If-None-Match, Origin, Range';
-	private const EXPOSE_HEADERS = 'ETag, Content-Type, Content-Length, Content-Range, Last-Modified';
+	public const METHODS = 'GET, HEAD, PUT, DELETE, OPTIONS';
+	public const ALLOW_HEADERS = 'Authorization, Content-Type, Content-Length, If-Match, If-None-Match, Origin, Range';
+	public const EXPOSE_HEADERS = 'ETag, Content-Type, Content-Length, Content-Range, Last-Modified';
 
 	private Server $server;
 	/** ETag of the document before this PUT, to detect writes Nextcloud gives no new ETag. */

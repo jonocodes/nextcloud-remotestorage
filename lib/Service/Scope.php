@@ -56,6 +56,19 @@ final class Scope implements \Stringable {
 		return $level !== null && (!$write || $level === 'rw');
 	}
 
+	/**
+	 * The item that covers a module ("*" wins), e.g. "notes:rw"; for null, the
+	 * one covering the storage root. Null when nothing does.
+	 */
+	public function itemFor(?string $module): ?string {
+		foreach (['*', $module] as $key) {
+			if ($key !== null && isset($this->levels[$key])) {
+				return $key . ':' . $this->levels[$key];
+			}
+		}
+		return null;
+	}
+
 	/** @return array<string,'r'|'rw'> */
 	public function levels(): array {
 		return $this->levels;

@@ -15,6 +15,7 @@ use OCP\IUserManager;
 /** Answers acct:<user>@<this host> with the user's remoteStorage link. */
 class WebFingerHandler implements IHandler {
 	public const REL = 'http://tools.ietf.org/id/draft-dejong-remotestorage';
+	public const SPEC_VERSION = 'draft-dejong-remotestorage-22';
 
 	public function __construct(
 		private IUserManager $userManager,
@@ -44,7 +45,7 @@ class WebFingerHandler implements IHandler {
 			default => new JrdResponse($resource),
 		};
 		$jrd->addLink(self::REL, null, $this->urlGenerator->getAbsoluteURL($this->paths->storagePath($user->getUID())), [], [
-			'http://remotestorage.io/spec/version' => 'draft-dejong-remotestorage-22',
+			'http://remotestorage.io/spec/version' => self::SPEC_VERSION,
 			'http://tools.ietf.org/html/rfc6749#section-4.2' =>
 				$this->urlGenerator->linkToRouteAbsolute('remotestorage.oauth.authorize'),
 			'http://tools.ietf.org/html/rfc7233' => 'GET',
