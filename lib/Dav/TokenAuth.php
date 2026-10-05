@@ -52,7 +52,15 @@ class TokenAuth implements BackendInterface {
 		return [false, 'no remoteStorage credentials'];
 	}
 
+	/**
+	 * Adds a Bearer challenge for a rejected remoteStorage token, next to
+	 * whatever core adds, so the client learns this endpoint speaks Bearer
+	 * (RFC 6750 §3). Basic-auth and anonymous requests are left to core.
+	 */
 	public function challenge(RequestInterface $request, ResponseInterface $response): void {
+		if (str_starts_with((string)$request->getHeader('Authorization'), 'Bearer rs_')) {
+			$response->addHeader('WWW-Authenticate', 'Bearer realm="remoteStorage", error="invalid_token"');
+		}
 	}
 
 	private function checkToken(string $bearer): array {
