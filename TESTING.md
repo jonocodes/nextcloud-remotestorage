@@ -21,7 +21,8 @@ directory); this document is the findings, kept with the app. For the protocol-l
 - **One ecosystem client is dead**: `remotestorage-fuse` builds and mounts but parses the
   obsolete (draft-02) listing format, so no path resolves. Unmaintained since 2013; a client
   problem, not the app's.
-- The only genuine app-side gap found is that **DELETE responses carry no ETag**.
+- The one app-side gap found — **DELETE responses carried no ETag** — is fixed: the app now
+  returns the deleted document's ETag (`lib/Dav/RsPlugin.php`).
 
 ## Environment
 
@@ -35,7 +36,7 @@ and run in the harness (`client-probe` / `runner` containers, per-app origins).
 | My Favorite Drinks | `b51503e` | `myfavoritedrinks` rw | pass |
 | Notes Together | `321c5a1` (v0.3.3) | `documents` rw | pass |
 | RS Inspektor (m5x5) | `b499d16` | `*` rw | pass |
-| `0dataapp/spec-check` | `e969675` | `api-test-suite:rw`/`:r`, `*:rw` | 64/76 pass, 6 explained |
+| `0dataapp/spec-check` | `e969675` | `api-test-suite:rw`/`:r`, `*:rw` | 66/76 pass, 4 explained |
 
 ## What the passing runs show
 
@@ -53,12 +54,12 @@ and run in the harness (`client-probe` / `runner` containers, per-app origins).
 
 ## Findings
 
-### The one app-side gap: DELETE has no ETag
+### Fixed: DELETE responses now carry an ETag
 
-`spec-check` (spec ≥ 2) expects the deleted item's ETag on the DELETE response; Nextcloud core
-sends none. The harness recorded the same deviation for T12, and remoteStorage.js never reads
-one, so impact is low — but the app already rewrites DELETE to answer `200` (instead of
-WebDAV's `204`), so it could also return the ETag it read before deleting. Worth doing.
+`spec-check` (spec ≥ 2) expects the deleted item's ETag on the DELETE response, and Nextcloud
+core sends none. `RsPlugin` now remembers the document's ETag before the delete and returns it
+on the `200` response (`rememberDeleteETag` + `afterDelete`), so the two `spec-check` cases
+pass. remoteStorage.js never read this header, so nothing else changes.
 
 ### Client-side issues (no app change possible or needed)
 

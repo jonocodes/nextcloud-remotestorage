@@ -38,6 +38,8 @@ class RsPlugin extends ServerPlugin {
 	private Server $server;
 	/** ETag of the document before this PUT, to detect writes Nextcloud gives no new ETag. */
 	private ?string $etagBeforePut = null;
+	/** ETag of the document before this DELETE, returned on the response (spec >= 2). */
+	private ?string $etagBeforeDelete = null;
 	/** Set when folderGet answered for a folder that does not exist (see finishMissingFolder). */
 	private bool $answeredMissingFolder = false;
 
@@ -62,6 +64,7 @@ class RsPlugin extends ServerPlugin {
 		// Before Sabre checks preconditions and handles the PUT.
 		$server->on('beforeMethod:PUT', [$this, 'createParents'], 30);
 		$server->on('beforeMethod:PUT', [$this, 'rememberETag'], 31);
+		$server->on('beforeMethod:DELETE', [$this, 'rememberDeleteETag'], 31);
 		// Before Sabre's CorePlugin GET (100).
 		$server->on('method:GET', [$this, 'folderGet'], 50);
 		// Before other apps' afterMethod:GET hooks (default 100).
@@ -168,6 +171,14 @@ class RsPlugin extends ServerPlugin {
 		if ($this->ownMatch($request) !== null && $this->server->tree->nodeExists($request->getPath())) {
 			$node = $this->server->tree->getNodeForPath($request->getPath());
 			$this->etagBeforePut = $node instanceof Node ? $node->getETag() : null;
+		}
+	}
+
+	public function rememberDeleteETag(RequestInterface $request, ResponseInterface $response): void {
+		$this->etagBeforeDelete = null;
+		if ($this->ownMatch($request) !== null && $this->server->tree->nodeExists($request->getPath())) {
+			$node = $this->server->tree->getNodeForPath($request->getPath());
+			$this->etagBeforeDelete = $node instanceof Node ? $node->getETag() : null;
 		}
 	}
 
@@ -315,6 +326,10 @@ class RsPlugin extends ServerPlugin {
 		}
 		if ($response->getStatus() === 204) {
 			$response->setStatus(200);
+		}
+		// remoteStorage spec >= 2: a DELETE response carries the deleted document's ETag.
+		if ($this->etagBeforeDelete !== null) {
+			$response->setHeader('ETag', $this->etagBeforeDelete);
 		}
 	}
 
