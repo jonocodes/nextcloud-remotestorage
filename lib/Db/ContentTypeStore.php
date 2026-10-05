@@ -17,13 +17,14 @@ class ContentTypeStore {
 	}
 
 	public function save(int $fileId, string $etag, string $contentType): void {
-		$this->delete($fileId);
-		$qb = $this->db->getQueryBuilder();
-		$qb->insert(self::TABLE)->values([
-			'fileid' => $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT),
-			'etag' => $qb->createNamedParameter($etag),
-			'content_type' => $qb->createNamedParameter($contentType),
-		])->executeStatement();
+		// Upsert on the primary key. delete-then-insert lets concurrent PUTs
+		// insert the same fileid and fail after the file body is already stored.
+		$this->db->setValues(self::TABLE, [
+			'fileid' => $fileId,
+		], [
+			'etag' => $etag,
+			'content_type' => $contentType,
+		]);
 	}
 
 	public function delete(int $fileId): void {
