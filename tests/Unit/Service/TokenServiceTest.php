@@ -80,16 +80,55 @@ class TokenServiceTest extends TestCase {
 		$this->assertSame(1790990000, $stale->getLastUsedAt());
 	}
 
-	public function testRevokeOnlyOwnTokens(): void {
-		$token = new Token();
-		$this->mapper->expects($this->once())->method('findForUser')->with(7, 'alice')->willReturn($token);
-		$this->mapper->expects($this->once())->method('delete')->with($token);
-		$this->assertTrue($this->service->revoke('alice', 7));
+	public function testGroupedForMergesTokensOfTheSameApp(): void {
+		$this->mapper->method('findAllForUser')->with('alice')->willReturn([
+			$this->token('https://a.example', 'notes:rw', 100, 200),
+			$this->token('https://a.example', 'contacts:r', 100, 300),
+			$this->token('https://b.example', 'notes:r', 150, 160),
+		]);
+
+		$apps = $this->service->groupedFor('alice');
+
+		// Newest connection first.
+		$this->assertSame(['https://b.example', 'https://a.example'], array_column($apps, 'clientId'));
+		$this->assertSame(1, $apps[0]['count']);
+		$this->assertSame(2, $apps[1]['count']);
+		$this->assertSame(['contacts:r', 'notes:rw'], $apps[1]['scopes']);
+		$this->assertSame(100, $apps[1]['createdAt']);
+		$this->assertSame(300, $apps[1]['lastUsedAt']);
 	}
 
-	public function testRevokeUnknownToken(): void {
-		$this->mapper->method('findForUser')->willThrowException(new DoesNotExistException('no'));
-		$this->mapper->expects($this->never())->method('delete');
-		$this->assertFalse($this->service->revoke('alice', 7));
+	public function testGroupedForListsEachScopeOnce(): void {
+		$this->mapper->method('findAllForUser')->willReturn([
+			$this->token('https://a.example', 'notes:rw', 100, 100),
+			$this->token('https://a.example', 'notes:rw', 110, 120),
+		]);
+
+		$apps = $this->service->groupedFor('alice');
+
+		$this->assertSame(['notes:rw'], $apps[0]['scopes']);
+		$this->assertSame(2, $apps[0]['count']);
+		$this->assertSame(100, $apps[0]['createdAt']);
+		$this->assertSame(120, $apps[0]['lastUsedAt']);
+	}
+
+	public function testGroupedForWithoutTokens(): void {
+		$this->mapper->method('findAllForUser')->willReturn([]);
+		$this->assertSame([], $this->service->groupedFor('alice'));
+	}
+
+	public function testRevokeClientRemovesEveryTokenForThatApp(): void {
+		$this->mapper->expects($this->once())->method('deleteForUserAndClient')
+			->with('alice', 'https://a.example')->willReturn(2);
+		$this->assertSame(2, $this->service->revokeClient('alice', 'https://a.example'));
+	}
+
+	private function token(string $clientId, string $scope, int $createdAt, int $lastUsedAt): Token {
+		$token = new Token();
+		$token->setClientId($clientId);
+		$token->setScope($scope);
+		$token->setCreatedAt($createdAt);
+		$token->setLastUsedAt($lastUsedAt);
+		return $token;
 	}
 }

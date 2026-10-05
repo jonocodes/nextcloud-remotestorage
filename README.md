@@ -58,8 +58,9 @@ tests both installed together.
   `alice@cloud.example.com`. Type it into any remoteStorage app's connect widget.
 - You log in to Nextcloud as usual (two-factor and SSO apply), then see which folders the app
   asks for (for example `notes`, read and write) and choose **Allow** or **Deny**.
-- Connected apps are listed in the same settings section with their access and last use;
-  **Disconnect** revokes one immediately.
+- Connected apps are listed in the same settings section, one row per app with the access it
+  was granted and when it last used it; **Disconnect** revokes all of that app's tokens at once
+  (reconnecting, or connecting from another device, adds a token to the existing row).
 - The data is in the `remoteStorage` folder of your files: visible in the Files app, synced by
   the desktop client, with versions and trash like any other file.
 
