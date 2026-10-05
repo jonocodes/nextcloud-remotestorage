@@ -68,6 +68,41 @@ class StoragePathsTest extends TestCase {
 		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/./notes'));
 	}
 
+	public function testRejectsEncodedDotSegments(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/%2e%2e/secret'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/%2E%2E/secret'));
+	}
+
+	public function testRejectsEncodedSlash(): void {
+		// An encoded "/" would make this layer split the path differently than
+		// the transport, so it is never accepted.
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes%2fa.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes%2F..%2Fsecret'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/al%2fice/remoteStorage/notes/a.txt'));
+	}
+
+	public function testRejectsEncodedNullByte(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a%00b.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/al%00ice/remoteStorage/notes/a.txt'));
+	}
+
+	public function testRejectsEmptyPathSegment(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes//a.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage//notes/a.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorage//'));
+	}
+
+	public function testRejectsDotOrDotDotUser(): void {
+		$this->assertNull($this->paths->match('/remote.php/dav/files/../remoteStorage/notes/a.txt'));
+		$this->assertNull($this->paths->match('/remote.php/dav/files/./remoteStorage/notes/a.txt'));
+	}
+
+	public function testAllowsAnEncodedPercentInAName(): void {
+		// A literal "%" in a filename is valid and must survive decoding.
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/50%25.txt');
+		$this->assertSame('/notes/50%.txt', $m->rel);
+	}
+
 	public function testStorageUrlPath(): void {
 		$this->assertSame('/remote.php/dav/files/al%20ice/remoteStorage', $this->paths->storagePath('al ice'));
 	}
