@@ -304,25 +304,14 @@ class RsPlugin extends ServerPlugin {
 	}
 
 	/**
-	 * remoteStorage DELETE removes parent folders left empty, up to (not
-	 * including) the root, and answers 200, not 204.
+	 * remoteStorage DELETE answers 200, not 204, and returns the deleted
+	 * document's ETag. Empty parent folders stay on disk: listings already
+	 * omit them, and deleting them can race a concurrent PUT.
 	 */
 	public function afterDelete(RequestInterface $request, ResponseInterface $response): void {
 		$match = $this->ownMatch($request);
 		if ($match === null || $response->getStatus() >= 300) {
 			return;
-		}
-		$tree = $this->server->tree;
-		$parents = array_slice($this->paths->parentDavPaths($match), 1);
-		foreach (array_reverse($parents) as $path) {
-			if (!$tree->nodeExists($path)) {
-				continue;
-			}
-			$node = $tree->getNodeForPath($path);
-			if (!$node instanceof ICollection || $node->getChildren() !== []) {
-				break;
-			}
-			$tree->delete($path);
 		}
 		if ($response->getStatus() === 204) {
 			$response->setStatus(200);
