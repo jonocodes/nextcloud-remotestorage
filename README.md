@@ -129,7 +129,8 @@ just package    # build/remotestorage.tar.gz
 
 DAV integration (auth, plugin, OAuth pages, remoteStorage.js) is tested in the
 [harness](https://github.com/jonocodes/remotestorage-nextcloud-harness), which expects this
-repository checked out next to it.
+repository checked out next to it. Compatibility with real third-party remoteStorage clients,
+and how to reproduce it, is in [TESTING.md](TESTING.md).
 
 ## Known limitations
 
