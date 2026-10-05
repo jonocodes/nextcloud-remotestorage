@@ -26,10 +26,8 @@ class Personal implements ISettings {
 		$uid = $this->userSession->getUser()?->getUID() ?? '';
 		return new TemplateResponse(Application::APP_ID, 'settings-personal', [
 			'address' => $uid . '@' . $this->request->getServerHost(),
-			'tokens' => array_map(fn ($token): array => [
-				'token' => $token,
-				'revokeUrl' => $this->urlGenerator->linkToRoute('remotestorage.token.revoke', ['id' => $token->getId()]),
-			], $this->tokens->listFor($uid)),
+			'apps' => $this->tokens->groupedFor($uid),
+			'revokeAction' => $this->urlGenerator->linkToRoute('remotestorage.token.revoke'),
 		], '');
 	}
 

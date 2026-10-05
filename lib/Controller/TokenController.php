@@ -24,10 +24,10 @@ class TokenController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function revoke(int $id): RedirectResponse {
+	public function revoke(string $clientId = ''): RedirectResponse {
 		$user = $this->userSession->getUser();
-		if ($user !== null) {
-			$this->tokens->revoke($user->getUID(), $id);
+		if ($user !== null && $clientId !== '') {
+			$this->tokens->revokeClient($user->getUID(), $clientId);
 		}
 		return new RedirectResponse(
 			$this->urlGenerator->linkToRoute('settings.PersonalSettings.index', ['section' => 'security']) . '#remotestorage'

@@ -62,17 +62,43 @@ class TokenService {
 		}
 	}
 
-	/** @return list<Token> */
-	public function listFor(string $uid): array {
-		return $this->mapper->findAllForUser($uid);
+	/**
+	 * The user's connected apps: one entry per client, so several tokens from
+	 * the same app (a reconnect, a second device) read as one connection.
+	 *
+	 * @return list<array{clientId: string, scopes: list<string>, createdAt: int, lastUsedAt: int, count: int}>
+	 */
+	public function groupedFor(string $uid): array {
+		$groups = [];
+		foreach ($this->mapper->findAllForUser($uid) as $token) {
+			$clientId = $token->getClientId();
+			if (!isset($groups[$clientId])) {
+				$groups[$clientId] = [
+					'clientId' => $clientId,
+					'scopes' => [],
+					'createdAt' => $token->getCreatedAt(),
+					'lastUsedAt' => $token->getLastUsedAt(),
+					'count' => 0,
+				];
+			}
+			$groups[$clientId]['scopes'][$token->getScope()] = true;
+			$groups[$clientId]['createdAt'] = min($groups[$clientId]['createdAt'], $token->getCreatedAt());
+			$groups[$clientId]['lastUsedAt'] = max($groups[$clientId]['lastUsedAt'], $token->getLastUsedAt());
+			$groups[$clientId]['count']++;
+		}
+		$apps = [];
+		foreach ($groups as $group) {
+			$scopes = array_keys($group['scopes']);
+			sort($scopes);
+			$group['scopes'] = $scopes;
+			$apps[] = $group;
+		}
+		usort($apps, static fn (array $a, array $b): int => [$b['createdAt'], $a['clientId']] <=> [$a['createdAt'], $b['clientId']]);
+		return $apps;
 	}
 
-	public function revoke(string $uid, int $id): bool {
-		try {
-			$this->mapper->delete($this->mapper->findForUser($id, $uid));
-			return true;
-		} catch (DoesNotExistException) {
-			return false;
-		}
+	/** Disconnect an app: revoke every token issued to it for this user. */
+	public function revokeClient(string $uid, string $clientId): int {
+		return $this->mapper->deleteForUserAndClient($uid, $clientId);
 	}
 }

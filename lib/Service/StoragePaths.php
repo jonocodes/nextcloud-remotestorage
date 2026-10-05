@@ -25,11 +25,30 @@ final class StoragePaths {
 		if (!preg_match($pattern, $path, $m)) {
 			return null;
 		}
-		$rel = rawurldecode(($m[2] ?? '') === '' ? '/' : $m[2]);
-		$segments = explode('/', trim($rel, '/'));
-		if (in_array('.', $segments, true) || in_array('..', $segments, true)) {
+		$uidRaw = $m[1];
+		$relRaw = ($m[2] ?? '') === '' ? '/' : $m[2];
+		// Reject encodings this layer and the transport would read differently:
+		// an encoded "/" would make us split the path differently than Sabre,
+		// and an encoded NUL is never part of a valid storage path.
+		if (stripos($uidRaw, '%2f') !== false || stripos($relRaw, '%2f') !== false
+			|| stripos($uidRaw, '%00') !== false || stripos($relRaw, '%00') !== false) {
 			return null;
 		}
+		$uid = rawurldecode($uidRaw);
+		$rel = rawurldecode($relRaw);
+		if ($uid === '.' || $uid === '..' || str_contains($uid, '/') || str_contains($uid, "\0")) {
+			return null;
+		}
+		// Every segment must be a real name: no "." / "..", no NUL, and no
+		// empty segment ("//"). The trailing empty segment of a folder is fine.
+		$parts = explode('/', substr($rel, 1));
+		foreach ($parts as $i => $part) {
+			if (($part === '' && $i !== count($parts) - 1) || $part === '.' || $part === '..'
+				|| str_contains($part, "\0")) {
+				return null;
+			}
+		}
+		$segments = explode('/', trim($rel, '/'));
 		$public = ($segments[0] ?? '') === 'public';
 		$module = $public ? ($segments[1] ?? '') : ($segments[0] ?? '');
 		$folder = str_ends_with($rel, '/');
@@ -37,7 +56,7 @@ final class StoragePaths {
 		if ($module === '' || ($folder && count(array_filter($segments)) === ($public ? 1 : 0))) {
 			$module = null;
 		}
-		return new StorageMatch(rawurldecode($m[1]), $rel, $module, $folder, $public);
+		return new StorageMatch($uid, $rel, $module, $folder, $public);
 	}
 
 	/** URL path of a user's storage root, as advertised in WebFinger. */

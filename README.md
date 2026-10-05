@@ -58,8 +58,9 @@ tests both installed together.
   `alice@cloud.example.com`. Type it into any remoteStorage app's connect widget.
 - You log in to Nextcloud as usual (two-factor and SSO apply), then see which folders the app
   asks for (for example `notes`, read and write) and choose **Allow** or **Deny**.
-- Connected apps are listed in the same settings section with their access and last use;
-  **Disconnect** revokes one immediately.
+- Connected apps are listed in the same settings section, one row per app with the access it
+  was granted and when it last used it; **Disconnect** revokes all of that app's tokens at once
+  (reconnecting, or connecting from another device, adds a token to the existing row).
 - The data is in the `remoteStorage` folder of your files: visible in the Files app, synced by
   the desktop client, with versions and trash like any other file.
 
@@ -72,7 +73,7 @@ Nextcloud's public extension points. Every file operation stays with Nextcloud's
 | --- | --- | --- |
 | WebFinger | `OCP\Http\WellKnown\IHandler` | Answers `acct:user@host` with the storage URL (`/remote.php/dav/files/<user>/remoteStorage`) and the OAuth URL. |
 | OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2). `client_id` must be the origin of `redirect_uri`. |
-| Login | `SabrePluginAuthInitEvent` | Accepts the app's own `rs_…` bearer tokens, for that request only (nothing is written to the session). Other bearer tokens pass through to core untouched. |
+| Login | `SabrePluginAuthInitEvent` | Accepts the app's own `rs_…` bearer tokens, for that request only (nothing is written to the session). Other bearer tokens pass through to core untouched. A rejected `rs_…` token is answered with a `WWW-Authenticate: Bearer` challenge (RFC 6750 §3), next to core's; Basic-auth requests are untouched. |
 | WebDAV plugin | `SabrePluginAddEvent` | Scope checks; folder GET → remoteStorage JSON listing (empty and missing folders list as empty; empty subfolders are not listed); PUT creates missing parents; DELETE removes emptied parents; `If-None-Match` 304 on folders; CORS; the details below. |
 
 Where Nextcloud's WebDAV differs from the remoteStorage spec, the plugin corrects it for
