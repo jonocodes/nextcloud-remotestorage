@@ -48,25 +48,67 @@ class OAuthRequestTest extends TestCase {
 		$this->assertSame('http://localhost:8081', $request->origin());
 	}
 
-	public static function notRedirectable(): array {
+	public static function loopbackHttpOrigins(): array {
 		return [
-			'missing redirect_uri' => [['redirect_uri' => null]],
-			'relative redirect_uri' => [['redirect_uri' => '/index.html']],
-			'javascript redirect_uri' => [['redirect_uri' => 'javascript:alert(1)']],
-			'redirect_uri with fragment' => [['redirect_uri' => 'https://app.example/#x']],
-			'redirect_uri with credentials' => [['redirect_uri' => 'https://user@app.example/']],
-			'missing client_id' => [['client_id' => null]],
-			'client_id not the redirect origin' => [['client_id' => 'https://evil.example']],
-			'client_id on another port' => [['client_id' => 'https://app.example:444']],
+			'localhost' => ['http://localhost'],
+			'IPv4 loopback' => ['http://127.0.0.1:8081'],
+			'IPv6 loopback' => ['http://[::1]:8081'],
+			'expanded IPv6 loopback' => ['http://[0:0:0:0:0:0:0:1]:8081'],
+		];
+	}
+
+	#[DataProvider('loopbackHttpOrigins')]
+	public function testAcceptsHttpForLoopbackOrigins(string $origin): void {
+		$request = OAuthRequest::fromParams(self::params([
+			'client_id' => $origin,
+			'redirect_uri' => $origin . '/',
+		]));
+		$this->assertSame($origin, $request->origin());
+	}
+
+	private static function longOrigin(int $finalLabelLength): string {
+		return 'https://' . implode('.', [
+			str_repeat('a', 63),
+			str_repeat('b', 63),
+			str_repeat('c', 63),
+			str_repeat('d', $finalLabelLength),
+		]);
+	}
+
+	public function testAcceptsClientIdAtDatabaseLimit(): void {
+		$origin = self::longOrigin(55);
+		$request = OAuthRequest::fromParams(self::params([
+			'client_id' => $origin,
+			'redirect_uri' => $origin . '/',
+		]));
+		$this->assertSame(255, strlen($request->clientId));
+	}
+
+	public static function notRedirectable(): array {
+		$oversizedOrigin = self::longOrigin(56);
+		return [
+			'missing redirect_uri' => [['redirect_uri' => null], 'invalid_redirect_uri'],
+			'relative redirect_uri' => [['redirect_uri' => '/index.html'], 'invalid_redirect_uri'],
+			'javascript redirect_uri' => [['redirect_uri' => 'javascript:alert(1)'], 'invalid_redirect_uri'],
+			'redirect_uri with fragment' => [['redirect_uri' => 'https://app.example/#x'], 'invalid_redirect_uri'],
+			'redirect_uri with credentials' => [['redirect_uri' => 'https://user@app.example/'], 'invalid_redirect_uri'],
+			'remote HTTP origin' => [['client_id' => 'http://app.example', 'redirect_uri' => 'http://app.example/'], 'invalid_redirect_uri'],
+			'localhost suffix over HTTP' => [['client_id' => 'http://localhost.evil.example', 'redirect_uri' => 'http://localhost.evil.example/'], 'invalid_redirect_uri'],
+			'non-loopback IPv4 over HTTP' => [['client_id' => 'http://192.0.2.1', 'redirect_uri' => 'http://192.0.2.1/'], 'invalid_redirect_uri'],
+			'missing client_id' => [['client_id' => null], 'invalid_client'],
+			'oversized client_id' => [['client_id' => $oversizedOrigin, 'redirect_uri' => $oversizedOrigin . '/'], 'invalid_client'],
+			'client_id not the redirect origin' => [['client_id' => 'https://evil.example'], 'invalid_client'],
+			'client_id on another port' => [['client_id' => 'https://app.example:444'], 'invalid_client'],
 		];
 	}
 
 	#[DataProvider('notRedirectable')]
-	public function testErrorsThatMustNotRedirect(array $override): void {
+	public function testErrorsThatMustNotRedirect(array $override, string $code): void {
 		try {
 			OAuthRequest::fromParams(self::params($override));
 			$this->fail('expected OAuthError');
 		} catch (OAuthError $e) {
+			$this->assertSame($code, $e->getMessage());
 			$this->assertNull($e->redirect);
 		}
 	}

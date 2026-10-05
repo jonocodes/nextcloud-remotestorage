@@ -40,6 +40,21 @@ class ScopeTest extends TestCase {
 		$this->assertSame('contacts:r notes:rw', (string)Scope::parse('notes:rw,contacts:r'));
 	}
 
+	public function testAcceptsNormalisedScopeAtDatabaseLimit(): void {
+		$scope = (string)Scope::parse(str_repeat('a', 1997) . ':rw');
+		$this->assertSame(2000, strlen($scope));
+	}
+
+	public function testRejectsNormalisedScopeOverDatabaseLimit(): void {
+		$this->expectException(InvalidArgumentException::class);
+		Scope::parse(str_repeat('a', 1998) . ':rw');
+	}
+
+	public function testBoundsTheNormalisedScopeRatherThanRawInput(): void {
+		$scope = (string)Scope::parse(str_repeat('notes:r ', 300) . 'notes:rw');
+		$this->assertSame('notes:rw', $scope);
+	}
+
 	public static function invalidScopes(): array {
 		return [
 			'empty' => [''],

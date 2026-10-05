@@ -8,6 +8,8 @@ use InvalidArgumentException;
 
 /** A validated remoteStorage OAuth implicit-grant request (RFC 6749 §4.2). */
 final class OAuthRequest {
+	private const MAX_CLIENT_ID_BYTES = 255;
+
 	private function __construct(
 		public readonly string $clientId,
 		public readonly string $redirectUri,
@@ -30,7 +32,7 @@ final class OAuthRequest {
 		if ($origin === null) {
 			throw new OAuthError('invalid_redirect_uri');
 		}
-		if ($clientId === null || $clientId !== $origin) {
+		if ($clientId === null || strlen($clientId) > self::MAX_CLIENT_ID_BYTES || $clientId !== $origin) {
 			throw new OAuthError('invalid_client');
 		}
 
@@ -76,7 +78,23 @@ final class OAuthRequest {
 			|| empty($parts['host']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
 			return null;
 		}
+		if ($parts['scheme'] === 'http' && !self::isLoopbackHost($parts['host'])) {
+			return null;
+		}
 		return $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
+	}
+
+	private static function isLoopbackHost(string $host): bool {
+		if (strtolower($host) === 'localhost') {
+			return true;
+		}
+		$literal = str_starts_with($host, '[') && str_ends_with($host, ']') ? substr($host, 1, -1) : $host;
+		$address = filter_var($literal, FILTER_VALIDATE_IP);
+		if (!is_string($address)) {
+			return false;
+		}
+		$packed = inet_pton($address);
+		return $packed === inet_pton('::1') || (is_string($packed) && strlen($packed) === 4 && ord($packed[0]) === 127);
 	}
 
 	/** @param array<string,string> $params */

@@ -12,6 +12,7 @@ use InvalidArgumentException;
  */
 final class Scope implements \Stringable {
 	private const MODULE = '/^(?:\*|[a-z0-9_-]+)$/';
+	private const MAX_NORMALISED_BYTES = 2000;
 
 	/** @param array<string,'r'|'rw'> $levels */
 	private function __construct(
@@ -37,7 +38,11 @@ final class Scope implements \Stringable {
 			throw new InvalidArgumentException('empty scope');
 		}
 		ksort($levels);
-		return new self($levels);
+		$scope = new self($levels);
+		if (strlen((string)$scope) > self::MAX_NORMALISED_BYTES) {
+			throw new InvalidArgumentException('normalised scope is too long');
+		}
+		return $scope;
 	}
 
 	public function allows(string $module, bool $write): bool {
