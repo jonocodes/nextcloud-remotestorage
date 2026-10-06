@@ -9,5 +9,7 @@ return [
 		['name' => 'token#revoke', 'url' => '/tokens/revoke', 'verb' => 'POST'],
 		['name' => 'debug#config', 'url' => '/debug/config', 'verb' => 'GET'],
 		['name' => 'debug#explain', 'url' => '/debug/explain', 'verb' => 'GET'],
+		['name' => 'debug#tokensMine', 'url' => '/debug/tokens/mine', 'verb' => 'GET'],
+		['name' => 'debug#tokens', 'url' => '/debug/tokens', 'verb' => 'GET'],
 	],
 ];

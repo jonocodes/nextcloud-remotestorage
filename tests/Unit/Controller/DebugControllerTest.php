@@ -5,19 +5,28 @@ declare(strict_types=1);
 namespace OCA\RemoteStorage\Tests\Unit\Controller;
 
 use OCA\RemoteStorage\Controller\DebugController;
+use OCA\RemoteStorage\Db\Token;
 use OCA\RemoteStorage\Service\AccessPolicy;
 use OCA\RemoteStorage\Service\StoragePaths;
+use OCA\RemoteStorage\Service\TokenService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\IRequest;
+use OCP\IUser;
+use OCP\IUserManager;
+use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 class DebugControllerTest extends TestCase {
 	private DebugController $controller;
+	private TokenService&MockObject $tokens;
+	private IUserSession&MockObject $userSession;
+	private IUserManager&MockObject $userManager;
 
 	protected function setUp(): void {
 		$appManager = $this->createMock(IAppManager::class);
@@ -25,7 +34,15 @@ class DebugControllerTest extends TestCase {
 		$appManager->method('getAppInfo')->willReturn([
 			'dependencies' => ['nextcloud' => ['@attributes' => ['min-version' => '34', 'max-version' => '35']]],
 		]);
-		$this->controller = new DebugController($this->createMock(IRequest::class), new StoragePaths('rs'), $appManager);
+		$this->tokens = $this->createMock(TokenService::class);
+		$this->userSession = $this->createMock(IUserSession::class);
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->controller = $this->createController($appManager);
+	}
+
+	private function createController(IAppManager $appManager): DebugController {
+		return new DebugController($this->createMock(IRequest::class), new StoragePaths('rs'), $appManager,
+			$this->tokens, $this->userSession, $this->userManager);
 	}
 
 	/** Explains a request for a path below alice's storage root. */
@@ -135,18 +152,86 @@ class DebugControllerTest extends TestCase {
 		$appManager = $this->createMock(IAppManager::class);
 		$appManager->method('getAppVersion')->willReturn('0.2.0');
 		$appManager->method('getAppInfo')->willReturn(null);
-		$controller = new DebugController($this->createMock(IRequest::class), new StoragePaths('rs'), $appManager);
+		$controller = $this->createController($appManager);
 		$this->assertSame(['min_version' => null, 'max_version' => null], $controller->config()->getData()['nextcloud']);
 	}
 
 	/** The endpoints are admin-only through the framework default: no attribute may relax that. */
-	public function testEndpointsStayAdminOnly(): void {
+	public function testEndpointAuthorizationAttributes(): void {
 		foreach ((new ReflectionClass(DebugController::class))->getMethods() as $method) {
 			if ($method->getDeclaringClass()->getName() !== DebugController::class || !$method->isPublic()) {
 				continue;
 			}
-			$this->assertSame([], $method->getAttributes(NoAdminRequired::class), $method->getName());
 			$this->assertSame([], $method->getAttributes(PublicPage::class), $method->getName());
+			if ($method->getName() === 'tokensMine') {
+				$this->assertNotEmpty($method->getAttributes(NoAdminRequired::class), 'tokensMine must allow non-admin callers');
+			} else {
+				$this->assertSame([], $method->getAttributes(NoAdminRequired::class), $method->getName() . ' must stay admin-only');
+			}
 		}
+	}
+
+	public function testTokensMineReturnsRedactedTokensForCurrentUser(): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('alice');
+		$this->userSession->method('getUser')->willReturn($user);
+
+		$token = $this->fakeToken(42, 'alice', 'https://app.example', 'notes:rw', 'secret_sha256_hash', 1000, 2000);
+		$this->tokens->expects($this->once())->method('listFor')->with('alice')->willReturn([$token]);
+
+		$response = $this->controller->tokensMine();
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$data = $response->getData();
+		$this->assertSame([['id' => 42, 'clientId' => 'https://app.example', 'scope' => 'notes:rw', 'createdAt' => 1000, 'lastUsedAt' => 2000]], $data);
+		$this->assertArrayNotHasKey('token_hash', $data[0]);
+		$this->assertArrayNotHasKey('tokenHash', $data[0]);
+		$this->assertArrayNotHasKey('userId', $data[0]);
+		$this->assertSame(['id', 'clientId', 'scope', 'createdAt', 'lastUsedAt'], array_keys($data[0]));
+	}
+
+	public function testTokensMineWhenNotLoggedInReturnsUnauthorized(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$response = $this->controller->tokensMine();
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => 'not logged in'], $response->getData());
+	}
+
+	public function testTokensReturnsRedactedTokensForTargetUser(): void {
+		$user = $this->createMock(IUser::class);
+		$this->userManager->method('get')->with('bob')->willReturn($user);
+
+		$token = $this->fakeToken(99, 'bob', 'https://bob.example', 'contacts:r', 'secret_hash', 500, 600);
+		$this->tokens->expects($this->once())->method('listFor')->with('bob')->willReturn([$token]);
+
+		$response = $this->controller->tokens('bob');
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$data = $response->getData();
+		$this->assertSame([['id' => 99, 'clientId' => 'https://bob.example', 'scope' => 'contacts:r', 'createdAt' => 500, 'lastUsedAt' => 600]], $data);
+		$this->assertArrayNotHasKey('token_hash', $data[0]);
+	}
+
+	public function testTokensUnknownUserReturnsNotFound(): void {
+		$this->userManager->method('get')->with('ghost')->willReturn(null);
+		$response = $this->controller->tokens('ghost');
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => 'unknown user'], $response->getData());
+	}
+
+	public function testTokensMissingUserIsABadRequest(): void {
+		$response = $this->controller->tokens('');
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'user is required'], $response->getData());
+	}
+
+	private function fakeToken(int $id, string $userId, string $clientId, string $scope, string $hash, int $createdAt, int $lastUsedAt): Token {
+		$token = new Token();
+		$token->setId($id);
+		$token->setUserId($userId);
+		$token->setClientId($clientId);
+		$token->setScope($scope);
+		$token->setTokenHash($hash);
+		$token->setCreatedAt($createdAt);
+		$token->setLastUsedAt($lastUsedAt);
+		return $token;
 	}
 }

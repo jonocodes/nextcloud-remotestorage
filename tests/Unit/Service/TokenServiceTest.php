@@ -123,6 +123,16 @@ class TokenServiceTest extends TestCase {
 		$this->assertSame(2, $this->service->revokeClient('alice', 'https://a.example'));
 	}
 
+	public function testListForReturnsAllTokensForUser(): void {
+		$tokens = [
+			$this->token('https://a.example', 'notes:rw', 100, 200),
+			$this->token('https://b.example', 'notes:r', 150, 160),
+		];
+		$this->mapper->expects($this->once())->method('findAllForUser')->with('alice')->willReturn($tokens);
+
+		$this->assertSame($tokens, $this->service->listFor('alice'));
+	}
+
 	private function token(string $clientId, string $scope, int $createdAt, int $lastUsedAt): Token {
 		$token = new Token();
 		$token->setClientId($clientId);

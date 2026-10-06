@@ -117,15 +117,19 @@ Basic-auth WebDAV responses with the app disabled and enabled (AT10).
 `occ remotestorage:token:issue <user> "<scope>" [label]` issues a token without the dialog
 (for scripts and tests); it shows up in the user's settings like any other.
 
-Two read-only, admin-only JSON endpoints help with troubleshooting (log in as an admin, or use
-`-u admin:<app-password>` with curl):
+Read-only JSON endpoints help with troubleshooting (use `-u <user>:<app-password>` with curl):
 
-- `GET /apps/remotestorage/debug/config` — the effective `storage_root`, app and spec version,
+- `GET /apps/remotestorage/debug/config` — admin-only; the effective `storage_root`, app and spec version,
   WebFinger `rel`, CORS methods/headers and the supported Nextcloud range.
 - `GET /apps/remotestorage/debug/explain?method=PUT&path=/remote.php/dav/files/alice/remoteStorage/notes/a.txt&scope=notes:r`
-  — a dry run of the access decision for that request: the resolved path, the parsed scope,
+  — admin-only; a dry run of the access decision for that request: the resolved path, the parsed scope,
   `allow` / `forbidden` / `method-not-allowed`, and why. Leave `scope` empty to simulate an
   anonymous request. It never takes or shows a token.
+- `GET /apps/remotestorage/debug/tokens/mine` — the caller's own tokens (any logged-in user).
+- `GET /apps/remotestorage/debug/tokens?user=<uid>` — admin-only; any user's tokens.
+
+The token endpoints return redacted records (`id`, `clientId`, `scope`, `createdAt`, `lastUsedAt`);
+`token_hash` and secrets are never emitted.
 
 ## Development
 

@@ -97,6 +97,11 @@ class TokenService {
 		return $apps;
 	}
 
+	/** @return list<Token> */
+	public function listFor(string $uid): array {
+		return $this->mapper->findAllForUser($uid);
+	}
+
 	/** Disconnect an app: revoke every token issued to it for this user. */
 	public function revokeClient(string $uid, string $clientId): int {
 		return $this->mapper->deleteForUserAndClient($uid, $clientId);
