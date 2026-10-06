@@ -35,7 +35,7 @@ and the community's [server test suite](https://github.com/remotestorage/api-tes
      strong ones; add this at the top of its `location ~ \.php(?:$|/) { ... }` block:
 
      ```nginx
-     if ($http_authorization ~ "^Bearer rs_") {
+     if ($http_authorization ~* "^Bearer rs_") {
          gzip off;
      }
      ```

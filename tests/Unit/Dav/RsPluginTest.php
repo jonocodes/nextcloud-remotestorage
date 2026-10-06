@@ -8,6 +8,7 @@ use OCA\RemoteStorage\Dav\RequestState;
 use OCA\RemoteStorage\Dav\RsPlugin;
 use OCA\RemoteStorage\Service\ContentTypeService;
 use OCA\RemoteStorage\Service\StoragePaths;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Sabre\DAV\Server;
 use Sabre\DAV\SimpleCollection;
@@ -55,5 +56,40 @@ class RsPluginTest extends TestCase {
 		$request = $this->createMock(RequestInterface::class);
 		$request->method('getUrl')->willReturn('http://example.test/remote.php/dav/files/alice/remoteStorage' . $rel);
 		return $request;
+	}
+
+	/** Runs the CORS hook for a request under alice's storage root. */
+	private function cors(string $authorization): Response {
+		$request = $this->createMock(RequestInterface::class);
+		$request->method('getHeader')->willReturnCallback(
+			static fn (string $name): ?string => match ($name) {
+				'Origin' => 'https://app.example',
+				'Authorization' => $authorization,
+				default => null,
+			}
+		);
+		$request->method('getUrl')->willReturn('https://cloud.example/remote.php/dav/files/alice/remoteStorage/notes/a.txt');
+		$response = new Response();
+		$this->plugin->cors($request, $response);
+		return $response;
+	}
+
+	public static function bearerSchemes(): array {
+		return [
+			'canonical' => ['Bearer rs_'],
+			'lowercase' => ['bearer rs_'],
+			'mixed-case' => ['BeArEr rs_'],
+		];
+	}
+
+	#[DataProvider('bearerSchemes')]
+	public function testCorsAppliesToBearerRegardlessOfSchemeCasing(string $scheme): void {
+		$response = $this->cors($scheme . str_repeat('a', 43));
+		$this->assertSame('https://app.example', $response->getHeader('Access-Control-Allow-Origin'));
+	}
+
+	public function testCorsIsLeftToCoreForBasicAuth(): void {
+		$response = $this->cors('Basic dXNlcjpwYXNz');
+		$this->assertNull($response->getHeader('Access-Control-Allow-Origin'));
 	}
 }

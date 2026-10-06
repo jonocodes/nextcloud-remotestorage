@@ -10,9 +10,9 @@ install:
 test: install
     {{composer}} vendor/bin/phpunit
 
-# Syntax-check every PHP file against PHP 8.2 and the current PHP
+# Syntax-check every PHP file; print only failures and exit non-zero if any
 lint:
-    {{composer}} sh -c 'find lib appinfo templates tests -name "*.php" -print0 | xargs -0 -n1 php -l | grep -v "^No syntax errors" || true'
+    {{composer}} sh -c 'errs=$(find lib appinfo templates tests -name "*.php" -print0 | xargs -0 -n1 php -l 2>/dev/null | grep -v "^No syntax errors"); if [ -n "$errs" ]; then printf "%s\n" "$errs"; exit 1; fi'
 
 # Integration: run the harness's rsapp variant against this checkout
 harness *versions="35 34":
