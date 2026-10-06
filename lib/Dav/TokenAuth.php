@@ -40,8 +40,9 @@ class TokenAuth implements BackendInterface {
 
 	public function check(RequestInterface $request, ResponseInterface $response): array {
 		$auth = (string)$request->getHeader('Authorization');
-		if (str_starts_with($auth, 'Bearer ')) {
-			return $this->checkToken(substr($auth, 7));
+		$bearer = Authorization::bearer($auth);
+		if ($bearer !== null) {
+			return $this->checkToken($bearer);
 		}
 		if ($auth === '' && in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
 			$match = $this->paths->match($request->getUrl());
@@ -58,7 +59,8 @@ class TokenAuth implements BackendInterface {
 	 * (RFC 6750 §3). Basic-auth and anonymous requests are left to core.
 	 */
 	public function challenge(RequestInterface $request, ResponseInterface $response): void {
-		if (str_starts_with((string)$request->getHeader('Authorization'), 'Bearer rs_')) {
+		$bearer = Authorization::bearer((string)$request->getHeader('Authorization'));
+		if ($bearer !== null && str_starts_with($bearer, TokenService::PREFIX)) {
 			$response->addHeader('WWW-Authenticate', 'Bearer realm="remoteStorage", error="invalid_token"');
 		}
 	}

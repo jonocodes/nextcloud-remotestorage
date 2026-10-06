@@ -83,7 +83,7 @@ class RsPlugin extends ServerPlugin {
 		// Only bearer-token or anonymous requests (a bad token's 401 must be
 		// readable); Basic-auth requests keep core's behaviour exactly.
 		$auth = (string)$request->getHeader('Authorization');
-		if ($auth !== '' && !str_starts_with($auth, 'Bearer ')) {
+		if ($auth !== '' && Authorization::bearer($auth) === null) {
 			return null;
 		}
 		// The origin is echoed, never with Access-Control-Allow-Credentials,

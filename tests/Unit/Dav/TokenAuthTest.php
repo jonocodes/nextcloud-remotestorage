@@ -12,6 +12,7 @@ use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\IUserSession;
 use OCP\Security\Bruteforce\IThrottler;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Sabre\HTTP\RequestInterface;
 use Sabre\HTTP\Response;
@@ -70,5 +71,28 @@ class TokenAuthTest extends TestCase {
 		$response = new Response();
 		$this->auth->challenge($this->request('Bearer some-core-oauth-token'), $response);
 		$this->assertNull($response->getHeader('WWW-Authenticate'));
+	}
+
+	public static function appTokenSchemes(): array {
+		return [
+			'canonical' => ['Bearer rs_'],
+			'lowercase' => ['bearer rs_'],
+			'mixed-case' => ['BeArEr rs_'],
+		];
+	}
+
+	#[DataProvider('appTokenSchemes')]
+	public function testCheckAuthenticatesAppTokensRegardlessOfSchemeCasing(string $scheme): void {
+		// Reaching the token store (rather than "no remoteStorage credentials")
+		// proves a non-canonical scheme is still parsed as Bearer.
+		$result = $this->auth->check($this->request($scheme . str_repeat('a', 43)), new Response());
+		$this->assertSame([false, 'unknown remoteStorage token'], $result);
+	}
+
+	#[DataProvider('appTokenSchemes')]
+	public function testChallengeAdvertisesBearerRegardlessOfSchemeCasing(string $scheme): void {
+		$response = new Response();
+		$this->auth->challenge($this->request($scheme . str_repeat('a', 43)), $response);
+		$this->assertStringContainsString('Bearer realm="remoteStorage"', (string)$response->getHeader('WWW-Authenticate'));
 	}
 }
