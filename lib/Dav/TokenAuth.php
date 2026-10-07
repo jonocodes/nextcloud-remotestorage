@@ -72,6 +72,8 @@ class TokenAuth implements BackendInterface {
 		$ip = $this->request->getRemoteAddress();
 		try {
 			// Blocks the IP after too many failures; otherwise only returns the delay.
+			// (Despite its name and OCP docblock, Nextcloud's Throttler does not sleep
+			// here; the harness's A3 check guards this.)
 			$delay = $this->throttler->sleepDelayOrThrowOnMax($ip, self::THROTTLE_ACTION);
 		} catch (MaxDelayReached) {
 			return [false, 'too many failed attempts'];

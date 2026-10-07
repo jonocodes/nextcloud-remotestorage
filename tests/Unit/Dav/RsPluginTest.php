@@ -10,8 +10,10 @@ use OCA\RemoteStorage\Service\ContentTypeService;
 use OCA\RemoteStorage\Service\StoragePaths;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Sabre\DAV\Exception\NotFound;
 use Sabre\DAV\Server;
 use Sabre\DAV\SimpleCollection;
+use Sabre\DAV\SimpleFile;
 use Sabre\HTTP\RequestInterface;
 use Sabre\HTTP\Response;
 
@@ -32,7 +34,9 @@ class RsPluginTest extends TestCase {
 				new SimpleCollection('alice', [
 					new SimpleCollection('remoteStorage', [
 						new SimpleCollection('notes', [
-							new SimpleCollection('sub', []),
+							new SimpleCollection('sub', [
+								new SimpleFile('a.txt', 'a'),
+							]),
 						]),
 					]),
 				]),
@@ -52,9 +56,22 @@ class RsPluginTest extends TestCase {
 		$this->assertSame(200, $response->getStatus());
 	}
 
+	public function testDeleteOfAFolderWithoutTrailingSlashIsRefused(): void {
+		// DELETE applies to documents; WebDAV would delete the folder and
+		// everything in it.
+		$this->expectException(NotFound::class);
+		$this->plugin->refuseFolderDelete($this->documentRequest('/notes/sub'), new Response());
+	}
+
+	public function testDeleteOfADocumentIsLeftToWebDav(): void {
+		$this->plugin->refuseFolderDelete($this->documentRequest('/notes/sub/a.txt'), new Response());
+		$this->assertTrue($this->server->tree->nodeExists('files/alice/remoteStorage/notes/sub/a.txt'));
+	}
+
 	private function documentRequest(string $rel): RequestInterface {
 		$request = $this->createMock(RequestInterface::class);
 		$request->method('getUrl')->willReturn('http://example.test/remote.php/dav/files/alice/remoteStorage' . $rel);
+		$request->method('getPath')->willReturn('files/alice/remoteStorage' . $rel);
 		return $request;
 	}
 

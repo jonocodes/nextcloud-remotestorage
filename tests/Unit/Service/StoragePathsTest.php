@@ -70,6 +70,22 @@ class StoragePathsTest extends TestCase {
 		$this->assertSame('/notes/a.txt', $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a.txt?x=1')->rel);
 	}
 
+	public function testOnlyMatchesRightAfterTheDavBase(): void {
+		// WebDAV resolves these against its own base, so a storage root further
+		// down the URL would be checked against a different path than it serves.
+		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/Documents/remote.php/dav/files/alice/remoteStorage/notes/a'));
+		$this->assertNull($this->paths->match('/remote%2Ephp/dav/files/alice/Documents/remote.php/dav/files/alice/remoteStorage/notes/a'));
+		$this->assertNull($this->paths->match('/x/../remote.php/dav/files/alice/remoteStorage/notes/a'));
+		$this->assertNull($this->paths->match('//remote.php/dav/files/alice/remoteStorage/notes/a'));
+	}
+
+	public function testHonoursTheWebroot(): void {
+		$paths = new StoragePaths('remoteStorage', '/nextcloud');
+		$this->assertSame('/notes/a', $paths->match('https://cloud.example/nextcloud/remote.php/dav/files/alice/remoteStorage/notes/a')->rel);
+		$this->assertNull($paths->match('/remote.php/dav/files/alice/remoteStorage/notes/a'));
+		$this->assertNull($paths->match('/other/remote.php/dav/files/alice/remoteStorage/notes/a'));
+	}
+
 	public function testOutsideTheRootIsNull(): void {
 		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/other/a.txt'));
 		$this->assertNull($this->paths->match('/remote.php/dav/files/alice/remoteStorageX/a.txt'));
