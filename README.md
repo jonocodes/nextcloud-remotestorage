@@ -73,8 +73,9 @@ Nextcloud's public extension points. Every file operation stays with Nextcloud's
 
 | Piece | Extension point | What it does |
 | --- | --- | --- |
-| WebFinger | `OCP\Http\WellKnown\IHandler` | Answers `acct:user@host` with the storage URL (`/remote.php/dav/files/<user>/remoteStorage`) and the OAuth URL. |
-| OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2). `client_id` must be the origin of `redirect_uri`. |
+| WebFinger | `OCP\Http\WellKnown\IHandler` | Answers `acct:user@host` with the storage URL (`/remote.php/dav/files/<user>/remoteStorage`), the OAuth URLs, and the PKCE support (`S256`). |
+| OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2) and the PKCE code grant's consent step. `client_id` must be the origin of `redirect_uri`. |
+| OAuth token endpoint | app route `/apps/remotestorage/oauth/token` | Exchanges a one-time code plus the PKCE verifier for an `rs_…` token (RFC 6749 §3.2, spec §10.1); S256 only, single use. |
 | Login | `SabrePluginAuthInitEvent` | Accepts the app's own `rs_…` bearer tokens, for that request only (nothing is written to the session). Other bearer tokens pass through to core untouched. A rejected `rs_…` token is answered with a `WWW-Authenticate: Bearer` challenge (RFC 6750 §3), next to core's; Basic-auth requests are untouched. |
 | WebDAV plugin | `SabrePluginAddEvent` | Scope checks; folder GET → remoteStorage JSON listing (empty and missing folders list as empty; empty subfolders are not listed); PUT creates missing parents; DELETE leaves emptied parents on disk; `If-None-Match` 304 on folders; CORS; the details below. |
 
@@ -152,7 +153,6 @@ and how to reproduce it, is in [TESTING.md](TESTING.md).
 
 ## Known limitations
 
-- Implicit grant only; no OAuth code flow with PKCE yet.
 - A brand-new user's first login shows Nextcloud's first-run wizard on top of the consent page;
   they have to close it before choosing Allow.
 - Nextcloud core still sends session cookies on every WebDAV response, including anonymous ones.
