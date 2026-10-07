@@ -115,8 +115,8 @@ class OAuthRequestTest extends TestCase {
 
 	public static function redirectable(): array {
 		return [
-			'code flow' => [['response_type' => 'code'], 'unsupported_response_type'],
 			'missing response_type' => [['response_type' => null], 'unsupported_response_type'],
+			'unsupported response_type' => [['response_type' => 'foo'], 'unsupported_response_type'],
 			'missing scope' => [['scope' => null], 'invalid_scope'],
 			'bad scope' => [['scope' => 'notes'], 'invalid_scope'],
 		];
@@ -130,6 +130,61 @@ class OAuthRequestTest extends TestCase {
 		} catch (OAuthError $e) {
 			$this->assertSame($code, $e->getMessage());
 			$this->assertSame('https://app.example/index.html#error=' . $code . '&state=xyz', $e->redirect);
+		}
+	}
+
+	/** RFC 7636 appendix B code_challenge (base64url of the S256 digest). */
+	private const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+	private static function codeParams(array $override = []): array {
+		return self::params(array_merge([
+			'response_type' => 'code',
+			'code_challenge' => self::CHALLENGE,
+			'code_challenge_method' => 'S256',
+		], $override));
+	}
+
+	public function testImplicitRequestIsNotCodeFlow(): void {
+		$request = OAuthRequest::fromParams(self::params());
+		$this->assertSame('token', $request->responseType);
+		$this->assertFalse($request->isCodeFlow());
+	}
+
+	public function testCodeFlowRequestCarriesTheChallenge(): void {
+		$request = OAuthRequest::fromParams(self::codeParams());
+		$this->assertSame('code', $request->responseType);
+		$this->assertTrue($request->isCodeFlow());
+		$this->assertSame(self::CHALLENGE, $request->codeChallenge);
+		$this->assertSame('S256', $request->codeChallengeMethod);
+	}
+
+	public function testCodeRedirectPutsTheCodeInTheQueryNotTheFragment(): void {
+		$request = OAuthRequest::fromParams(self::codeParams());
+		$this->assertSame('https://app.example/index.html?code=abc123&state=xyz', $request->codeRedirect('abc123'));
+	}
+
+	public function testCodeFlowErrorRedirectUsesTheQuery(): void {
+		$request = OAuthRequest::fromParams(self::codeParams());
+		$this->assertSame('https://app.example/index.html?error=access_denied&state=xyz', $request->errorRedirect('access_denied'));
+	}
+
+	public static function invalidCodeChallenges(): array {
+		return [
+			'missing challenge' => [['code_challenge' => null]],
+			'missing method' => [['code_challenge_method' => null]],
+			'plain method' => [['code_challenge_method' => 'plain']],
+			'malformed challenge' => [['code_challenge' => 'too-short']],
+		];
+	}
+
+	#[DataProvider('invalidCodeChallenges')]
+	public function testCodeFlowNeedsAValidS256Challenge(array $override): void {
+		try {
+			OAuthRequest::fromParams(self::codeParams($override));
+			$this->fail('expected OAuthError');
+		} catch (OAuthError $e) {
+			$this->assertSame('invalid_request', $e->getMessage());
+			$this->assertSame('https://app.example/index.html?error=invalid_request&state=xyz', $e->redirect);
 		}
 	}
 }
