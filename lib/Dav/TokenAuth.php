@@ -46,7 +46,7 @@ class TokenAuth implements BackendInterface {
 		}
 		if ($auth === '' && in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
 			$match = $this->paths->match($request->getUrl());
-			if ($match !== null && $match->public && !$match->folder && $match->module !== null) {
+			if ($match !== null && $match->public && !$match->folder) {
 				return $this->login($match->uid, null, true) ?? [false, 'unknown user'];
 			}
 		}

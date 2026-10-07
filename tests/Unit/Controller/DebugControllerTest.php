@@ -87,10 +87,12 @@ class DebugControllerTest extends TestCase {
 				'PROPFIND is not a remoteStorage method (GET, HEAD, PUT, DELETE)'],
 			'anonymous public document' => ['GET', '/public/notes/a.txt', '', AccessPolicy::ALLOW,
 				'anonymous requests may read public documents'],
+			'anonymous document at the root of /public' => ['GET', '/public/notes', '', AccessPolicy::ALLOW,
+				'anonymous requests may read public documents'],
 			'anonymous public listing' => ['GET', '/public/notes/', '', AccessPolicy::FORBIDDEN,
 				'anonymous requests may not list folders'],
 			'anonymous private document' => ['GET', '/notes/a.txt', '', AccessPolicy::FORBIDDEN,
-				'without a token only documents under /public/<module>/ are readable'],
+				'without a token only documents under /public/ are readable'],
 			'anonymous write' => ['PUT', '/public/notes/a.txt', '', AccessPolicy::FORBIDDEN,
 				'anonymous requests may only read'],
 		];

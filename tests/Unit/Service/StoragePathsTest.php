@@ -28,6 +28,20 @@ class StoragePathsTest extends TestCase {
 		$this->assertFalse($this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes')->folder);
 	}
 
+	public function testSlashlessRootDocumentIsNotAModule(): void {
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/notes');
+		$this->assertSame('/notes', $m->rel);
+		$this->assertFalse($m->folder);
+		$this->assertNull($m->module, 'a document at the root is not inside a module folder');
+	}
+
+	public function testSlashlessPublicRootDocumentIsNotAModule(): void {
+		$m = $this->paths->match('/remote.php/dav/files/alice/remoteStorage/public/notes');
+		$this->assertTrue($m->public);
+		$this->assertFalse($m->folder);
+		$this->assertNull($m->module);
+	}
+
 	public function testRoot(): void {
 		foreach (['/remote.php/dav/files/alice/remoteStorage', '/remote.php/dav/files/alice/remoteStorage/'] as $url) {
 			$m = $this->paths->match($url);
