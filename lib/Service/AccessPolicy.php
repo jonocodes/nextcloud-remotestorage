@@ -37,17 +37,18 @@ final class AccessPolicy {
 		if ($scope === null) {
 			return self::result(self::FORBIDDEN, 'the login carries no scope');
 		}
-		$item = $scope->itemFor($match->module);
-		if ($item === null) {
-			return self::result(self::FORBIDDEN, $match->module === null
-				? "only a '*' scope covers the storage root and /public/ themselves"
-				: "no scope item covers the module '{$match->module}'");
+		$grant = $scope->itemFor($match->module, $write);
+		if ($grant !== null) {
+			return self::result(self::ALLOW, "'$grant' covers this path");
 		}
-		if ($write && !str_ends_with($item, ':rw')) {
-			$module = substr($item, 0, -2);
-			return self::result(self::FORBIDDEN, "'$item' allows reads only; writing needs '$module:rw'");
+		$readOnly = $scope->itemFor($match->module, false);
+		if ($readOnly !== null) {
+			$module = substr($readOnly, 0, -2);
+			return self::result(self::FORBIDDEN, "'$readOnly' allows reads only; writing needs '$module:rw'");
 		}
-		return self::result(self::ALLOW, "'$item' covers this path");
+		return self::result(self::FORBIDDEN, $match->module === null
+			? "only a '*' scope covers the storage root and /public/ themselves"
+			: "no scope item covers the module '{$match->module}'");
 	}
 
 	/** @return array{decision: string, reason: string} */

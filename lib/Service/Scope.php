@@ -46,24 +46,26 @@ final class Scope implements \Stringable {
 	}
 
 	public function allows(string $module, bool $write): bool {
-		$level = $this->levels['*'] ?? $this->levels[$module] ?? null;
-		return $level !== null && (!$write || $level === 'rw');
+		return $this->itemFor($module, $write) !== null;
 	}
 
 	/** The storage root and /public/ itself are only covered by "*". */
 	public function allowsRoot(bool $write): bool {
-		$level = $this->levels['*'] ?? null;
-		return $level !== null && (!$write || $level === 'rw');
+		return $this->itemFor(null, $write) !== null;
 	}
 
 	/**
-	 * The item that covers a module ("*" wins), e.g. "notes:rw"; for null, the
-	 * one covering the storage root. Null when nothing does.
+	 * The scope item that grants the requested access, e.g. "notes:rw", or null.
+	 * A token's access is the sum of its items (spec section 9), so any matching
+	 * item suffices and a specific item is not overridden by "*"; the module's
+	 * own item is preferred for the debug reason. For null (the storage root and
+	 * /public/ themselves) only "*" can grant it.
 	 */
-	public function itemFor(?string $module): ?string {
-		foreach (['*', $module] as $key) {
-			if ($key !== null && isset($this->levels[$key])) {
-				return $key . ':' . $this->levels[$key];
+	public function itemFor(?string $module, bool $write): ?string {
+		foreach ($module === null ? ['*'] : [$module, '*'] as $key) {
+			$level = $this->levels[$key] ?? null;
+			if ($level !== null && (!$write || $level === 'rw')) {
+				return $key . ':' . $level;
 			}
 		}
 		return null;

@@ -103,8 +103,9 @@ Basic-auth WebDAV responses with the app disabled and enabled (AT10).
 - **Tokens** are `rs_` + 43 random alphanumerics (~256 bits). Only their SHA-256 is stored.
   They do not expire; users revoke them in settings, and they are deleted with the user.
 - **Scopes:** `notes:rw` covers `/notes/` and `/public/notes/`; `notes:r` is read-only; `*:rw`
-  covers everything, including the root. Requests outside the scope get 403, and a token can
-  never reach files outside the storage root.
+  covers everything, including the root. A token's access is the sum of its scope items, so
+  `*:r notes:rw` reads everywhere and also writes `notes`. Requests outside the scope get 403,
+  and a token can never reach files outside the storage root.
 - **Public folder:** documents under `/public/<module>/` are readable without a token, as the
   protocol requires; listings, writes and everything else are not.
 - **CORS:** on token and anonymous requests under the storage root, the request's `Origin` is
