@@ -6,6 +6,8 @@ return [
 	'routes' => [
 		['name' => 'oauth#authorize', 'url' => '/oauth', 'verb' => 'GET'],
 		['name' => 'oauth#approve', 'url' => '/oauth', 'verb' => 'POST'],
+		['name' => 'oauth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
+		['name' => 'oauth#tokenOptions', 'url' => '/oauth/token', 'verb' => 'OPTIONS'],
 		['name' => 'token#revoke', 'url' => '/tokens/revoke', 'verb' => 'POST'],
 		['name' => 'debug#config', 'url' => '/debug/config', 'verb' => 'GET'],
 		['name' => 'debug#explain', 'url' => '/debug/explain', 'verb' => 'GET'],

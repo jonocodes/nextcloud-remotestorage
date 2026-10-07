@@ -44,10 +44,15 @@ class WebFingerHandler implements IHandler {
 			$previousResponse instanceof JrdResponse => $previousResponse,
 			default => new JrdResponse($resource),
 		};
+		$authorizeUrl = $this->urlGenerator->linkToRouteAbsolute('remotestorage.oauth.authorize');
 		$jrd->addLink(self::REL, null, $this->urlGenerator->getAbsoluteURL($this->paths->storagePath($user->getUID())), [], [
 			'http://remotestorage.io/spec/version' => self::SPEC_VERSION,
-			'http://tools.ietf.org/html/rfc6749#section-4.2' =>
-				$this->urlGenerator->linkToRouteAbsolute('remotestorage.oauth.authorize'),
+			'http://tools.ietf.org/html/rfc6749#section-4.2' => $authorizeUrl,
+			// Spec §10.1: advertising these lets a client use the code + PKCE flow.
+			'http://tools.ietf.org/html/rfc6749#section-3.1' => $authorizeUrl,
+			'http://tools.ietf.org/html/rfc6749#section-3.2' =>
+				$this->urlGenerator->linkToRouteAbsolute('remotestorage.oauth.token'),
+			'http://tools.ietf.org/html/rfc7636' => 'S256',
 			'http://tools.ietf.org/html/rfc7233' => 'GET',
 		]);
 		return new CorsJrdResponse($jrd);
