@@ -64,6 +64,7 @@ class RsPlugin extends ServerPlugin {
 		// Before Sabre checks preconditions and handles the PUT.
 		$server->on('beforeMethod:PUT', [$this, 'createParents'], 30);
 		$server->on('beforeMethod:PUT', [$this, 'rememberETag'], 31);
+		$server->on('beforeMethod:DELETE', [$this, 'refuseFolderDelete'], 30);
 		$server->on('beforeMethod:DELETE', [$this, 'rememberDeleteETag'], 31);
 		// Before Sabre's CorePlugin GET (100).
 		$server->on('method:GET', [$this, 'folderGet'], 50);
@@ -171,6 +172,18 @@ class RsPlugin extends ServerPlugin {
 		if ($this->ownMatch($request) !== null && $this->server->tree->nodeExists($request->getPath())) {
 			$node = $this->server->tree->getNodeForPath($request->getPath());
 			$this->etagBeforePut = $node instanceof Node ? $node->getETag() : null;
+		}
+	}
+
+	/**
+	 * DELETE applies to documents. A folder named without its trailing slash
+	 * is no document (404, as for GET), and WebDAV would otherwise delete it
+	 * with everything in it.
+	 */
+	public function refuseFolderDelete(RequestInterface $request, ResponseInterface $response): void {
+		if ($this->ownMatch($request) !== null && $this->server->tree->nodeExists($request->getPath())
+			&& $this->server->tree->getNodeForPath($request->getPath()) instanceof ICollection) {
+			throw new NotFound('no document at this path');
 		}
 	}
 

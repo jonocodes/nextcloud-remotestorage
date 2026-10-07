@@ -10,8 +10,13 @@ namespace OCA\RemoteStorage\Service;
  * in remoteStorage that slash is what makes a path a folder.
  */
 final class StoragePaths {
+	/**
+	 * @param string $webroot Nextcloud's webroot ("" or e.g. "/nextcloud"),
+	 *                        the prefix of the DAV base WebDAV resolves against
+	 */
 	public function __construct(
 		private string $root,
+		private string $webroot = '',
 	) {
 	}
 
@@ -21,7 +26,12 @@ final class StoragePaths {
 
 	public function match(string $url): ?StorageMatch {
 		$path = (string)parse_url($url, PHP_URL_PATH);
-		$pattern = '#^(?:.*)/remote\.php/dav/files/([^/]+)/' . preg_quote($this->root, '#') . '(/.*)?$#';
+		// Anchored to the exact DAV base: WebDAV resolves the path against it, so
+		// a storage root appearing anywhere else in the URL (after more
+		// segments, behind an encoded or dot-segment prefix) would make the
+		// scope check look at a different file than the one served.
+		$pattern = '#^' . preg_quote($this->webroot . '/remote.php/dav/files/', '#') . '([^/]+)/'
+			. preg_quote($this->root, '#') . '(/.*)?$#';
 		if (!preg_match($pattern, $path, $m)) {
 			return null;
 		}

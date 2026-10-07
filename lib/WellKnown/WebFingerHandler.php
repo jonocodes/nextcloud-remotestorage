@@ -30,7 +30,8 @@ class WebFingerHandler implements IHandler {
 		}
 		$request = $context->getHttpRequest();
 		$resource = (string)$request->getParam('resource', '');
-		if (!preg_match('/^acct:([^@]+)@(.+)$/', $resource, $m)
+		// The host follows the last "@": user ids may themselves contain one.
+		if (!preg_match('/^acct:(.+)@([^@]+)$/', $resource, $m)
 			|| strcasecmp($m[2], $request->getServerHost()) !== 0) {
 			return $previousResponse;
 		}

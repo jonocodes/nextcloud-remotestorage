@@ -17,6 +17,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\IAppConfig;
+use OCP\IURLGenerator;
 use OCP\User\Events\UserDeletedEvent;
 use Psr\Container\ContainerInterface;
 
@@ -31,7 +32,8 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerService(StoragePaths::class, static fn (ContainerInterface $c): StoragePaths => new StoragePaths(
-			$c->get(IAppConfig::class)->getValueString(self::APP_ID, 'storage_root', self::DEFAULT_ROOT)
+			$c->get(IAppConfig::class)->getValueString(self::APP_ID, 'storage_root', self::DEFAULT_ROOT),
+			$c->get(IURLGenerator::class)->getWebroot(),
 		));
 		$context->registerService(RequestState::class, static fn (): RequestState => new RequestState());
 		$context->registerEventListener(SabrePluginAuthInitEvent::class, AuthInitListener::class);

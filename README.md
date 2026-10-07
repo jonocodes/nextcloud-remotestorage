@@ -106,7 +106,10 @@ Basic-auth WebDAV responses with the app disabled and enabled (AT10).
 - **Scopes:** `notes:rw` covers `/notes/` and `/public/notes/`; `notes:r` is read-only; `*:rw`
   covers everything, including the root. A token's access is the sum of its scope items, so
   `*:r notes:rw` reads everywhere and also writes `notes`. Requests outside the scope get 403,
-  and a token can never reach files outside the storage root.
+  and a token can never reach files outside the storage root: paths are only recognised
+  directly after Nextcloud's DAV base (`<webroot>/remote.php/dav/files/`).
+- **DELETE** removes documents only; a folder named without its trailing slash answers 404
+  instead of being deleted with its contents.
 - **Public folder:** documents under `/public/<module>/` are readable without a token, as the
   protocol requires; listings, writes and everything else are not.
 - **CORS:** on token and anonymous requests under the storage root, the request's `Origin` is
@@ -128,7 +131,8 @@ Read-only JSON endpoints help with troubleshooting (use `-u <user>:<app-password
 - `GET /apps/remotestorage/debug/explain?method=PUT&path=/remote.php/dav/files/alice/remoteStorage/notes/a.txt&scope=notes:r`
   — admin-only; a dry run of the access decision for that request: the resolved path, the parsed scope,
   `allow` / `forbidden` / `method-not-allowed`, and why. Leave `scope` empty to simulate an
-  anonymous request. It never takes or shows a token.
+  anonymous request. On a Nextcloud installed in a subfolder, `path` includes the webroot
+  (e.g. `/nextcloud/remote.php/...`). It never takes or shows a token.
 - `GET /apps/remotestorage/debug/tokens/mine` — the caller's own tokens (any logged-in user).
 - `GET /apps/remotestorage/debug/tokens?user=<uid>` — admin-only; any user's tokens.
 
