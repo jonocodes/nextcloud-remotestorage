@@ -1,5 +1,7 @@
 # remoteStorage for Nextcloud
 
+[![CI](https://github.com/jonocodes/nextcloud-remotestorage/actions/workflows/ci.yml/badge.svg)](https://github.com/jonocodes/nextcloud-remotestorage/actions/workflows/ci.yml)
+
 A Nextcloud app that makes Nextcloud a [remoteStorage](https://remotestorage.io) server.
 Users connect any remoteStorage app with their address `user@your-nextcloud`, approve the
 access it asks for, and the app's data is stored as normal files in their Nextcloud.
