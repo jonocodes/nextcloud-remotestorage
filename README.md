@@ -6,7 +6,7 @@ A Nextcloud app that makes Nextcloud a [remoteStorage](https://remotestorage.io)
 Users connect any remoteStorage app with their address `user@your-nextcloud`, approve the
 access it asks for, and the app's data is stored as normal files in their Nextcloud.
 
-**Status:** early (0.2.0), not yet in the app store. Tested on Nextcloud 34 and 35, behind Apache
+**Status:** early (0.3.0), not yet in the app store. Tested on Nextcloud 34 and 35, behind Apache
 and behind nginx (with the WebFinger rewrite below), by the
 [test harness](https://github.com/jonocodes/remotestorage-nextcloud-harness) (`app/`), including
 an unmodified remoteStorage.js app connecting from two devices, syncing, editing and deleting,

@@ -6,15 +6,26 @@ namespace OCA\RemoteStorage\Service;
 
 use InvalidArgumentException;
 
-/** A validated remoteStorage OAuth implicit-grant request (RFC 6749 §4.2). */
+/**
+ * A validated remoteStorage OAuth request, either the implicit grant
+ * (RFC 6749 §4.2) or the authorization code grant with PKCE (RFC 7636),
+ * chosen by response_type.
+ */
 final class OAuthRequest {
+	public const IMPLICIT = 'token';
+	public const CODE = 'code';
 	private const MAX_CLIENT_ID_BYTES = 255;
+	/** S256 code challenge: base64url(sha256(verifier)), uncoded, 43 characters. */
+	private const S256_CHALLENGE = '/^[A-Za-z0-9_-]{43}$/';
 
 	private function __construct(
+		public readonly string $responseType,
 		public readonly string $clientId,
 		public readonly string $redirectUri,
 		public readonly Scope $scope,
 		public readonly ?string $state,
+		public readonly ?string $codeChallenge,
+		public readonly ?string $codeChallengeMethod,
 	) {
 	}
 
@@ -36,11 +47,14 @@ final class OAuthRequest {
 			throw new OAuthError('invalid_client');
 		}
 
-		$back = static fn (string $code): string => self::fragmentUrl($redirectUri, array_filter(
-			['error' => $code, 'state' => $state],
-			static fn (?string $v): bool => $v !== null
-		));
-		if (self::string($params, 'response_type') !== 'token') {
+		$responseType = self::string($params, 'response_type') ?? '';
+		$isCode = $responseType === self::CODE;
+		$back = static fn (string $code): string => self::backUrl(
+			$redirectUri,
+			$isCode,
+			array_filter(['error' => $code, 'state' => $state], static fn (?string $v): bool => $v !== null)
+		);
+		if (!in_array($responseType, [self::IMPLICIT, self::CODE], true)) {
 			throw new OAuthError('unsupported_response_type', $back('unsupported_response_type'));
 		}
 		try {
@@ -48,13 +62,30 @@ final class OAuthRequest {
 		} catch (InvalidArgumentException) {
 			throw new OAuthError('invalid_scope', $back('invalid_scope'));
 		}
-		return new self($clientId, $redirectUri, $scope, $state);
+
+		$challenge = null;
+		$method = null;
+		if ($isCode) {
+			$challenge = self::string($params, 'code_challenge');
+			$method = self::string($params, 'code_challenge_method');
+			// We support S256 only (spec §10.1): reject a missing challenge,
+			// the "plain" method, and anything not shaped like an S256 digest.
+			if ($method !== 'S256' || $challenge === null || preg_match(self::S256_CHALLENGE, $challenge) !== 1) {
+				throw new OAuthError('invalid_request', $back('invalid_request'));
+			}
+		}
+		return new self($responseType, $clientId, $redirectUri, $scope, $state, $challenge, $method);
 	}
 
 	public function origin(): string {
 		return $this->clientId;
 	}
 
+	public function isCodeFlow(): bool {
+		return $this->responseType === self::CODE;
+	}
+
+	/** Implicit grant: the token goes in the fragment (RFC 6749 §4.2.2). */
 	public function successRedirect(string $token): string {
 		return self::fragmentUrl($this->redirectUri, array_filter([
 			'access_token' => $token,
@@ -64,11 +95,24 @@ final class OAuthRequest {
 		], static fn (?string $v): bool => $v !== null));
 	}
 
+	/** Code grant: the code goes in the query (RFC 6749 §4.1.2). */
+	public function codeRedirect(string $code): string {
+		return self::queryUrl($this->redirectUri, array_filter([
+			'code' => $code,
+			'state' => $this->state,
+		], static fn (?string $v): bool => $v !== null));
+	}
+
 	public function errorRedirect(string $code): string {
-		return self::fragmentUrl($this->redirectUri, array_filter(
+		return self::backUrl($this->redirectUri, $this->isCodeFlow(), array_filter(
 			['error' => $code, 'state' => $this->state],
 			static fn (?string $v): bool => $v !== null
 		));
+	}
+
+	/** @param array<string,string> $params */
+	private static function backUrl(string $redirectUri, bool $codeFlow, array $params): string {
+		return $codeFlow ? self::queryUrl($redirectUri, $params) : self::fragmentUrl($redirectUri, $params);
 	}
 
 	/** Origin of an absolute http(s) URL without fragment or credentials, else null. */
@@ -100,6 +144,11 @@ final class OAuthRequest {
 	/** @param array<string,string> $params */
 	private static function fragmentUrl(string $url, array $params): string {
 		return $url . '#' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+	}
+
+	/** @param array<string,string> $params */
+	private static function queryUrl(string $url, array $params): string {
+		return $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 	}
 
 	private static function string(array $params, string $key): ?string {
