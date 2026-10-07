@@ -49,11 +49,15 @@ final class StoragePaths {
 			}
 		}
 		$segments = explode('/', trim($rel, '/'));
-		$public = ($segments[0] ?? '') === 'public';
-		$module = $public ? ($segments[1] ?? '') : ($segments[0] ?? '');
+		$public = str_starts_with($rel, '/public/');
 		$folder = str_ends_with($rel, '/');
-		// "/notes" without the slash names a document; "/public/" or "/" have no module.
-		if ($module === '' || ($folder && count(array_filter($segments)) === ($public ? 1 : 0))) {
+		$modulePos = $public ? 1 : 0;
+		$module = $segments[$modulePos] ?? '';
+		// A path without a trailing slash names a document, and a module scope
+		// only covers /<module>/ and /public/<module>/. So when the module
+		// segment is the last one and the path is not a folder, it is a document
+		// at that level (the root, or /public/) that only "*" reaches.
+		if ($module === '' || !($folder || isset($segments[$modulePos + 1]))) {
 			$module = null;
 		}
 		return new StorageMatch($uid, $rel, $module, $folder, $public);

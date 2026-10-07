@@ -8,7 +8,11 @@ namespace OCA\RemoteStorage\Service;
 final class StorageMatch {
 	/**
 	 * @param string $rel path below the storage root, always starting with "/"
-	 * @param ?string $module the scope module, null for the root and /public/ itself
+	 * @param ?string $module the scope module of a path under /<module>/ or
+	 *                        /public/<module>/, null for the root and /public/
+	 *                        themselves and for a slashless document at that level
+	 * @param bool $public true when the path is under /public/ (not the /public
+	 *                     document at the root)
 	 */
 	public function __construct(
 		public readonly string $uid,

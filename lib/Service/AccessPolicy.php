@@ -56,8 +56,8 @@ final class AccessPolicy {
 		if ($write) {
 			return self::result(self::FORBIDDEN, 'anonymous requests may only read');
 		}
-		if (!$match->public || $match->module === null) {
-			return self::result(self::FORBIDDEN, 'without a token only documents under /public/<module>/ are readable');
+		if (!$match->public) {
+			return self::result(self::FORBIDDEN, 'without a token only documents under /public/ are readable');
 		}
 		if ($match->folder) {
 			return self::result(self::FORBIDDEN, 'anonymous requests may not list folders');
