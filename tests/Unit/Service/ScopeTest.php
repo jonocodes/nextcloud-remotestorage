@@ -31,6 +31,37 @@ class ScopeTest extends TestCase {
 		$this->assertTrue(Scope::parse('notes:rw notes:r')->allows('notes', true));
 	}
 
+	public function testScopeItemsUnionRatherThanWildcardWins(): void {
+		// Spec: "the access the bearer token gives is the sum of its access scopes".
+		$scope = Scope::parse('*:r notes:rw');
+		$this->assertTrue($scope->allows('notes', true), 'an explicit write survives a wildcard read');
+		$this->assertTrue($scope->allows('notes', false));
+		$this->assertTrue($scope->allows('photos', false));
+		$this->assertFalse($scope->allows('photos', true));
+	}
+
+	public function testWildcardWriteAppliesToAnEarlierReadOnlyModule(): void {
+		$scope = Scope::parse('notes:r *:rw');
+		$this->assertTrue($scope->allows('notes', true));
+		$this->assertTrue($scope->allows('photos', true));
+	}
+
+	public function testRootIsStillCoveredOnlyByWildcardWhenMixedWithAModule(): void {
+		$scope = Scope::parse('*:r notes:rw');
+		$this->assertTrue($scope->allowsRoot(false));
+		$this->assertFalse($scope->allowsRoot(true));
+	}
+
+	public function testItemForNamesTheGrantingItemAndPrefersTheModule(): void {
+		$scope = Scope::parse('*:r notes:rw');
+		$this->assertSame('notes:rw', $scope->itemFor('notes', true));
+		$this->assertSame('notes:rw', $scope->itemFor('notes', false));
+		$this->assertSame('*:r', $scope->itemFor('photos', false));
+		$this->assertNull($scope->itemFor('photos', true));
+		$this->assertSame('*:r', $scope->itemFor(null, false));
+		$this->assertNull($scope->itemFor(null, true));
+	}
+
 	public function testToStringIsNormalised(): void {
 		$this->assertSame('contacts:r notes:rw', (string)Scope::parse('  notes:rw   contacts:r notes:r '));
 	}
