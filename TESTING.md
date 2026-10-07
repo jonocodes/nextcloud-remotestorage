@@ -16,8 +16,10 @@ directory); this document is the findings, kept with the app. For the protocol-l
   contexts, and deleting, with data visible through Nextcloud WebDAV.
 - **A Node backup tool works end to end**: `rs-backup` discovers the account via WebFinger,
   backs it up and restores it into a fresh account, byte-identical and with Content-Types.
-- **A second conformance suite mostly passes**: `0dataapp/spec-check` reports 64 passing /
-  6 pending / 6 failing, every failure explained (below).
+- **A second conformance suite mostly passes**: `0dataapp/spec-check` reports 66 passing /
+  6 pending / 4 failing, every failure explained (below).
+- **Confirmed by hand on a real deployment**: a self-hosted instance connected to
+  [savr](https://savr.link) from two browsers on the same account, and the files synced.
 - **One ecosystem client is dead**: `remotestorage-fuse` builds and mounts but parses the
   obsolete (draft-02) listing format, so no path resolves. Unmaintained since 2013; a client
   problem, not the app's.
@@ -107,5 +109,6 @@ bash explore/clients/spec-check/run.sh
 ```
 
 Each writes `explore/sessions/<client>/result.json`, `notes.md` and screenshots/logs. The plan
-and per-client evidence are in the harness's `explore/`; only Nextcloud 35/Apache was exercised
-here (the harness's AT matrix covers 34 and nginx).
+and per-client evidence are in the harness's `explore/`; the automated runs here used Nextcloud
+35/Apache (the harness's AT matrix covers 34 and nginx), and the by-hand savr run was on a real
+self-hosted deployment.
