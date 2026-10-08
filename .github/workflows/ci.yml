@@ -23,3 +23,5 @@ jobs:
         run: just lint
       - name: Unit tests
         run: just test
+      - name: Package
+        run: just package-check

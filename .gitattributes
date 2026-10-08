@@ -1,0 +1,12 @@
+# Kept out of the release tarball (`just package` uses git archive)
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/docs export-ignore
+/tests export-ignore
+/AGENTS.md export-ignore
+/TESTING.md export-ignore
+/Justfile export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/phpunit.xml export-ignore

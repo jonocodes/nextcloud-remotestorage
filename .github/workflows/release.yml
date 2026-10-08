@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: extractions/setup-just@v4
+      - name: Check the tag matches info.xml and CHANGELOG.md
+        run: just release-check "${GITHUB_REF_NAME#v}"
+      - name: Lint PHP
+        run: just lint
+      - name: Unit tests
+        run: just test
+      - name: Package
+        run: just package-check
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          just release-notes "$v" > build/notes.md
+          flags=(--title "$v" --notes-file build/notes.md --verify-tag)
+          if [[ $v == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" build/remotestorage.tar.gz "${flags[@]}"

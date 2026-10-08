@@ -16,7 +16,8 @@ and the community's [server test suite](https://github.com/remotestorage/api-tes
 ## For admins
 
 1. Install and enable the app (until it is in the app store, copy this repository without
-   `vendor/`, `tests/` and `.git/` to `custom_apps/remotestorage`, or use `just package`):
+   `vendor/`, `tests/` and `.git/` to `custom_apps/remotestorage`, or extract a
+   [release](https://github.com/jonocodes/nextcloud-remotestorage/releases) tarball there):
    `occ app:enable remotestorage`
 2. Make sure `/.well-known/webfinger` is answered by Nextcloud **directly, without a redirect**.
    remoteStorage.js cannot follow a WebFinger redirect in a browser (its WebFinger library
@@ -147,13 +148,31 @@ PHP tooling runs in Docker, so no local PHP is needed. Requires `just` and Docke
 just test       # unit tests (pure logic: scopes, paths, access policy, listings, OAuth, tokens)
 just lint       # php -l on every file
 just harness    # integration: the harness's app/run.sh against this checkout (Nextcloud 35 and 34)
-just package    # build/remotestorage.tar.gz
+just package    # build/remotestorage.tar.gz from tracked files (just package-check verifies it)
 ```
 
 DAV integration (auth, plugin, OAuth pages, remoteStorage.js) is tested in the
 [harness](https://github.com/jonocodes/remotestorage-nextcloud-harness), which expects this
 repository checked out next to it. Compatibility with real third-party remoteStorage clients,
 and how to reproduce it, is in [TESTING.md](TESTING.md).
+
+## Releasing
+
+`appinfo/info.xml`'s `<version>` is the version (SemVer). Nextcloud runs migrations when it
+goes up, so bump it in any change that adds one. Changes go under `## [Unreleased]` in
+[CHANGELOG.md](CHANGELOG.md) as they land; that section becomes the release notes.
+
+```sh
+just release-prep 0.4.0   # set info.xml, date the Unreleased section; then commit, PR, merge
+just release-tag          # on a clean main: check, then tag v<version>
+git push origin v0.4.0    # the Release workflow checks, tests, packages and publishes it
+```
+
+The Release workflow refuses a tag that doesn't match info.xml or has no dated changelog
+section (`just release-check <version>`). A pre-release version (`0.4.0-beta.1`) is marked as a
+pre-release. Each GitHub release carries `remotestorage.tar.gz`, so the latest is always at
+`https://github.com/jonocodes/nextcloud-remotestorage/releases/latest/download/remotestorage.tar.gz`.
+Signing and app store publishing come later (see Known limitations).
 
 ## Known limitations
 
