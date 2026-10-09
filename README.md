@@ -160,6 +160,10 @@ and how to reproduce it, is in [TESTING.md](TESTING.md).
 - A brand-new user's first login shows Nextcloud's first-run wizard on top of the consent page;
   they have to close it before choosing Allow.
 - Nextcloud core still sends session cookies on every WebDAV response, including anonymous ones.
+- Many parallel PUTs into a folder that does not exist yet can still, rarely, get a 423 from
+  Nextcloud core's own write (about 1 restore in 25 in [TESTING.md](TESTING.md), with the
+  default database file locking); the app creates the missing folders safely, and a retry
+  succeeds.
 - Not yet in the app store (needs a signing certificate).
 
 ## License

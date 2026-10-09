@@ -12,8 +12,11 @@ use OCA\RemoteStorage\Service\ETagHeader;
 use OCA\RemoteStorage\Service\Listing;
 use OCA\RemoteStorage\Service\StorageMatch;
 use OCA\RemoteStorage\Service\StoragePaths;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Sabre\DAV\Exception\Conflict;
 use Sabre\DAV\Exception\Forbidden;
+use Sabre\DAV\Exception\Locked;
 use Sabre\DAV\Exception\MethodNotAllowed;
 use Sabre\DAV\Exception\NotFound;
 use Sabre\DAV\ICollection;
@@ -34,6 +37,8 @@ class RsPlugin extends ServerPlugin {
 	public const METHODS = 'GET, HEAD, PUT, DELETE, OPTIONS';
 	public const ALLOW_HEADERS = 'Authorization, Content-Type, Content-Length, If-Match, If-None-Match, Origin, Range';
 	public const EXPOSE_HEADERS = 'ETag, Content-Type, Content-Length, Content-Range, Last-Modified';
+	/** Upper bounds of the jittered waits for another request of the same user to finish creating parents (~3 s in all). */
+	private const PARENTS_LOCK_WAITS_MS = [25, 50, 100, 200, 400, 800, 1600];
 
 	private Server $server;
 	/** ETag of the document before this PUT, to detect writes Nextcloud gives no new ETag. */
@@ -47,6 +52,7 @@ class RsPlugin extends ServerPlugin {
 		private StoragePaths $paths,
 		private RequestState $state,
 		private ContentTypeService $contentTypes,
+		private ILockingProvider $locks,
 	) {
 	}
 
@@ -145,25 +151,72 @@ class RsPlugin extends ServerPlugin {
 	 * remoteStorage PUT creates missing parent folders. Skipped for If-Match
 	 * requests: those name an existing document, and a failed precondition
 	 * must not leave empty folders behind.
+	 *
+	 * Parallel PUTs into a new folder (a restore, a sync) must not create the
+	 * same folder at once: Nextcloud's mkdir takes a shared lock and upgrades
+	 * it, and with the database lock backend a request keeps its shared locks
+	 * until it ends, so two racing creators lock each other out (423) for good.
+	 * Missing parents are therefore created under a per-user lock, and only if
+	 * they are still missing once it is held.
 	 */
 	public function createParents(RequestInterface $request, ResponseInterface $response): void {
 		$match = $this->ownMatch($request);
 		if ($match === null || $request->getHeader('If-Match') !== null) {
 			return;
 		}
-		$tree = $this->server->tree;
-		foreach ($this->paths->parentDavPaths($match) as $path) {
-			if ($tree->nodeExists($path)) {
-				if (!$tree->getNodeForPath($path) instanceof ICollection) {
+		$paths = $this->paths->parentDavPaths($match);
+		$missing = array_values(array_filter($paths, fn (string $path): bool => !$this->isFolder($path)));
+		if ($missing === []) {
+			return;
+		}
+		$key = 'remotestorage/parents/' . $match->uid;
+		$this->lockParents($key);
+		try {
+			foreach ($missing as $path) {
+				if ($this->isFolder($path)) {
+					continue;
+				}
+				$parent = $this->server->tree->getNodeForPath(dirname($path));
+				if (!$parent instanceof ICollection) {
 					throw new Conflict('a parent of this document is a document');
 				}
-				continue;
+				$parent->createDirectory(basename($path));
 			}
-			$parent = $tree->getNodeForPath(dirname($path));
-			if (!$parent instanceof ICollection) {
-				throw new Conflict('a parent of this document is a document');
+		} finally {
+			$this->locks->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+		}
+	}
+
+	/**
+	 * Whether a parent exists (as a folder; a document there is a conflict).
+	 * Looked up the way WebDAV will resolve it (Nextcloud's file cache), not
+	 * with nodeExists(), which looks at the disk: a folder another request has
+	 * just made can be on disk before it is in the cache, and the PUT would 404.
+	 */
+	private function isFolder(string $path): bool {
+		try {
+			$node = $this->server->tree->getNodeForPath($path);
+		} catch (NotFound) {
+			return false;
+		}
+		if (!$node instanceof ICollection) {
+			throw new Conflict('a parent of this document is a document');
+		}
+		return true;
+	}
+
+	/** Waits (jittered) while another request of the same user creates parents; 423 if it takes too long. */
+	private function lockParents(string $key): void {
+		foreach ([...self::PARENTS_LOCK_WAITS_MS, null] as $waitMs) {
+			try {
+				$this->locks->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+				return;
+			} catch (LockedException) {
+				if ($waitMs === null) {
+					throw new Locked();
+				}
+				usleep(random_int($waitMs >> 1, $waitMs) * 1000);
 			}
-			$parent->createDirectory(basename($path));
 		}
 	}
 
