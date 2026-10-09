@@ -10,8 +10,9 @@ directory); this document is the findings, kept with the app. For the protocol-l
 
 ## Summary
 
-- **Three real, third-party browser apps work unchanged** — My Favorite Drinks
-  (`myfavoritedrinks`), Notes Together (`documents`) and RS Inspektor (whole account, `*`) —
+- **Four real, third-party browser apps work unchanged** — My Favorite Drinks
+  (`myfavoritedrinks`), Notes Together (`documents`), RS Inspektor (whole account, `*`) and
+  `m5x5/inspektor`, a rewrite of it —
   connecting through their own widget/OAuth, storing, reading, syncing across two browser
   contexts, and deleting, with data visible through Nextcloud WebDAV.
 - **A Node backup tool works end to end**: `rs-backup` discovers the account via WebFinger,
@@ -29,7 +30,8 @@ directory); this document is the findings, kept with the app. For the protocol-l
 ## Environment
 
 Nextcloud 35.0.1.1 (`nextcloud:35-apache`, SQLite), app `remotestorage` 0.2.0. Clients pinned
-and run in the harness (`client-probe` / `runner` containers, per-app origins).
+and run in the harness (`client-probe` / `runner` containers, per-app origins). The upstream
+RS Inspektor run was added later (2026-10-08) against app 0.3.0 (`273df2b`).
 
 | Client | Pin | Module / scope | Result |
 | --- | --- | --- | --- |
@@ -37,7 +39,8 @@ and run in the harness (`client-probe` / `runner` containers, per-app origins).
 | `remotestorage-fuse` | `2a25a1c` | `*` (base_url + token) | fail (stale client) |
 | My Favorite Drinks | `b51503e` | `myfavoritedrinks` rw | pass |
 | Notes Together | `321c5a1` (v0.3.3) | `documents` rw | pass |
-| RS Inspektor (m5x5) | `b499d16` | `*` rw | pass |
+| RS Inspektor (upstream, [`raucao/inspektor`](https://gitea.kosmos.org/raucao/inspektor)) | `0bece35` | `*` rw | pass, full metadata |
+| `m5x5/inspektor` (rewrite of RS Inspektor) | `b499d16` | `*` rw | pass |
 | `0dataapp/spec-check` | `e969675` | `api-test-suite:rw`/`:r`, `*:rw` | 66/76 pass, 4 explained |
 
 ## What the passing runs show
@@ -68,11 +71,21 @@ pass. remoteStorage.js never read this header, so nothing else changes.
 - **rs-backup 1.10.0 is broken as published on modern Node.** It `require()`s
   `webfinger.js ^2.7.1`, which resolves to the ESM-only 2.8.2 and throws. Pin `webfinger.js`
   to `2.7.1` (last CJS release).
-- **RS Inspektor loses all file metadata.** It constructs `new RemoteStorage({ cache: true })`
-  and calls `getListing`, which — as remoteStorage.js documents and tracks in its issues
-  721/1108 — returns `{name: true}` when caching is on. Inspektor therefore shows every item
-  as `application/octet-stream` with no size/ETag, cannot preview images, and doesn't
-  tree-render JSON. The app serves correct metadata to the same request.
+- **`m5x5/inspektor` loses all file metadata.** This is m5x5's 2026 Next.js rewrite of
+  RS Inspektor, not the original: it carries the upstream history but is not a GitHub fork,
+  and the rewrite commit (`6313ce6`, 2026-02-28) switched to
+  `new RemoteStorage({ cache: true })`. It then calls `getListing`, which — as
+  remoteStorage.js documents and tracks in its issues 721/1108 — returns `{name: true}` when
+  caching is on. The rewrite therefore shows every item as `application/octet-stream` with
+  no size/ETag, cannot preview images, and doesn't tree-render JSON. The app serves correct
+  metadata to the same request (reported as
+  [m5x5/inspektor#2](https://github.com/m5x5/inspektor/issues/2)). Upstream RS Inspektor
+  ([`raucao/inspektor`](https://gitea.kosmos.org/raucao/inspektor)) deliberately uses
+  `cache: false`, since an inspector should show live data, and is not affected: run against
+  the app it shows the correct Content-Type, size and ETag for every item, renders JSON as a
+  tree, previews images, and deletes. (It previews an image only when its Content-Type
+  carries `charset=binary`, which rs.js adds on binary uploads; a plain `image/png` stored by
+  curl shows correct metadata but no preview. That is upstream's own rule, not the app's.)
 - **remotestorage-fuse is obsolete.** Unmaintained since 2013 and written to an old listing
   format; use a maintained substitute (e.g. `zen-fs-remotestoragejs`) or skip the filesystem
   case.
@@ -105,6 +118,7 @@ bash explore/clients/remotestorage-fuse/run.sh
 bash explore/clients/myfavoritedrinks/run.sh
 bash explore/clients/notes-together/run.sh
 bash explore/clients/inspektor/run.sh
+bash explore/clients/inspektor-upstream/run.sh
 bash explore/clients/spec-check/run.sh
 ```
 
