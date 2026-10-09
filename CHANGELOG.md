@@ -6,6 +6,8 @@ The Nextcloud app store shows each version's section as its release notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-09
+
 ### Added
 - OAuth code flow with PKCE (spec §10.1): the authorization endpoint issues a one-time code
   for `response_type=code` with an S256 challenge (new table `remotestorage_auth_codes`), and
