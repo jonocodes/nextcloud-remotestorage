@@ -6,6 +6,10 @@ The Nextcloud app store shows each version's section as its release notes.
 
 ## [Unreleased]
 
+### Changed
+- `appinfo/info.xml` licence is now the SPDX id `AGPL-3.0-or-later` (the `agpl` alias is deprecated for the app store).
+- Added an app icon (`img/app.svg`, `img/icon.svg`).
+
 ## [0.3.0] - 2026-10-09
 
 ### Added

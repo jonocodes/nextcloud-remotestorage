@@ -8,7 +8,7 @@
 
 The app only fills the gaps: WebFinger discovery, an OAuth consent page with per-folder scopes, and remoteStorage folder listings and CORS on Nextcloud's own WebDAV. All file operations, ETags, versions, quotas and trash are Nextcloud's.]]></description>
 	<version>0.3.0</version>
-	<licence>agpl</licence>
+	<licence>AGPL-3.0-or-later</licence>
 	<author homepage="https://github.com/jonocodes">Jono</author>
 	<namespace>RemoteStorage</namespace>
 	<category>files</category>
