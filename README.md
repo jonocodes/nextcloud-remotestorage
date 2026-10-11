@@ -104,6 +104,9 @@ Basic-auth WebDAV responses with the app disabled and enabled (AT10).
 
 - **Tokens** are `rs_` + 43 random alphanumerics (~256 bits). Only their SHA-256 is stored.
   They do not expire; users revoke them in settings, and they are deleted with the user.
+- **Authorization codes** (PKCE flow) are stored the same way, as SHA-256 only, are single use
+  and expire after 10 minutes. Expired codes are deleted whenever a new one is issued, so
+  no background job is needed.
 - **Scopes:** `notes:rw` covers `/notes/` and `/public/notes/`; `notes:r` is read-only; `*:rw`
   covers everything, including the root. A token's access is the sum of its scope items, so
   `*:r notes:rw` reads everywhere and also writes `notes`. Requests outside the scope get 403,
