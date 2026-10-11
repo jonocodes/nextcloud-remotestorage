@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\RemoteStorage\Db;
 
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /** @template-extends QBMapper<AuthCode> */
@@ -27,6 +28,13 @@ class AuthCodeMapper extends QBMapper {
 	public function deleteByHash(string $hash): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete(self::TABLE)->where($qb->expr()->eq('code_hash', $qb->createNamedParameter($hash)));
+		return $qb->executeStatement();
+	}
+
+	/** Deletes codes that expired by $now (abandoned consents) and returns how many. */
+	public function deleteExpired(int $now): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete(self::TABLE)->where($qb->expr()->lte('expires_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT)));
 		return $qb->executeStatement();
 	}
 

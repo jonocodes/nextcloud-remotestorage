@@ -28,6 +28,8 @@ class AuthCodeService {
 	public function issue(string $uid, string $clientId, string $redirectUri, Scope $scope, string $challenge): string {
 		$plain = $this->random->generate(43, ISecureRandom::CHAR_ALPHANUMERIC);
 		$now = $this->time->getTime();
+		// Codes that were never redeemed are swept here, so no background job is needed.
+		$this->mapper->deleteExpired($now);
 		$code = new AuthCode();
 		$code->setCodeHash(hash('sha256', $plain));
 		$code->setUserId($uid);

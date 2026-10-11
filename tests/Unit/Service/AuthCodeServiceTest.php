@@ -58,6 +58,33 @@ class AuthCodeServiceTest extends TestCase {
 		$this->assertSame($now + 600, $stored->getExpiresAt());
 	}
 
+	public function testIssueFirstSweepsExpiredCodes(): void {
+		$now = 1000000;
+		$calls = [];
+		$mapper = $this->createMock(AuthCodeMapper::class);
+		$mapper->expects($this->once())->method('deleteExpired')->with($now)
+			->willReturnCallback(function () use (&$calls): int {
+				$calls[] = 'deleteExpired';
+				return 3;
+			});
+		$mapper->method('insert')->willReturnCallback(function (AuthCode $code) use (&$calls): AuthCode {
+			$calls[] = 'insert';
+			return $code;
+		});
+		$random = $this->createMock(ISecureRandom::class);
+		$random->method('generate')->willReturn(self::FIXTURE);
+
+		$this->service($mapper, $now, $random)->issue(
+			'alice',
+			'https://app.example',
+			'https://app.example/callback',
+			Scope::parse('notes:rw'),
+			self::CHALLENGE
+		);
+
+		$this->assertSame(['deleteExpired', 'insert'], $calls, 'abandoned codes are swept on each new consent');
+	}
+
 	private function storedCode(int $expiresAt = 1000600): AuthCode {
 		$code = new AuthCode();
 		$code->setCodeHash(hash('sha256', self::FIXTURE));
@@ -72,10 +99,10 @@ class AuthCodeServiceTest extends TestCase {
 		return $code;
 	}
 
-	private function service(AuthCodeMapper $mapper, int $now = 1000000): AuthCodeService {
+	private function service(AuthCodeMapper $mapper, int $now = 1000000, ?ISecureRandom $random = null): AuthCodeService {
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn($now);
-		return new AuthCodeService($mapper, $this->createMock(ISecureRandom::class), $time);
+		return new AuthCodeService($mapper, $random ?? $this->createMock(ISecureRandom::class), $time);
 	}
 
 	public function testRedeemReturnsTheCodeAndConsumesIt(): void {
