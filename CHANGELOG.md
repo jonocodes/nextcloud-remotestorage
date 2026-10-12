@@ -6,9 +6,12 @@ The Nextcloud app store shows each version's section as its release notes.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-10
+
 ### Changed
 - `appinfo/info.xml` licence is now the SPDX id `AGPL-3.0-or-later` (the `agpl` alias is deprecated for the app store).
 - Added an app icon (`img/app.svg`, `img/icon.svg`).
+- Added two store-listing screenshots (`docs/screenshots/`, linked from `appinfo/info.xml`).
 
 ### Fixed
 - PKCE authorization codes that are never redeemed no longer pile up: expired codes are deleted

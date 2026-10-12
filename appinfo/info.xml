@@ -7,7 +7,7 @@
 	<description><![CDATA[Makes Nextcloud a [remoteStorage](https://remotestorage.io) server. Users connect any remoteStorage app with their address `user@your-nextcloud`, approve the access it asks for, and the app's data is stored as normal files in their Nextcloud.
 
 The app only fills the gaps: WebFinger discovery, an OAuth consent page with per-folder scopes, and remoteStorage folder listings and CORS on Nextcloud's own WebDAV. All file operations, ETags, versions, quotas and trash are Nextcloud's.]]></description>
-	<version>0.3.0</version>
+	<version>0.3.1</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author homepage="https://github.com/jonocodes">Jono</author>
 	<namespace>RemoteStorage</namespace>
@@ -16,6 +16,8 @@ The app only fills the gaps: WebFinger discovery, an OAuth consent page with per
 	<website>https://github.com/jonocodes/nextcloud-remotestorage</website>
 	<bugs>https://github.com/jonocodes/nextcloud-remotestorage/issues</bugs>
 	<repository>https://github.com/jonocodes/nextcloud-remotestorage</repository>
+	<screenshot>https://raw.githubusercontent.com/jonocodes/nextcloud-remotestorage/main/docs/screenshots/consent.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/jonocodes/nextcloud-remotestorage/main/docs/screenshots/settings.png</screenshot>
 	<dependencies>
 		<php min-version="8.2"/>
 		<nextcloud min-version="34" max-version="35"/>
