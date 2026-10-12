@@ -11,6 +11,8 @@ use OCA\RemoteStorage\Service\Scope;
 use OCA\RemoteStorage\Service\TokenService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\RedirectResponse;
+use OCP\AppFramework\Http\StandaloneTemplateResponse;
+use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -44,6 +46,33 @@ class OauthControllerTest extends TestCase {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn('alice');
 		return $user;
+	}
+
+	/**
+	 * Core only tells BeforeTemplateRenderedEvent listeners a page is logged in when it is not
+	 * standalone, so a standalone consent page keeps the first-run wizard (and other apps'
+	 * page scripts) off it, like core's own ClientFlowLogin grant page.
+	 */
+	public function testAuthorizeRendersAStandaloneConsentPage(): void {
+		$response = $this->controller(self::params(), $this->user(), $this->createMock(TokenService::class),
+			$this->createMock(AuthCodeService::class))->authorize();
+
+		$this->assertInstanceOf(StandaloneTemplateResponse::class, $response);
+		$this->assertSame('authorize', $response->getTemplateName());
+		$this->assertSame(TemplateResponse::RENDER_AS_GUEST, $response->getRenderAs());
+		$this->assertSame('https://app.example', $response->getParams()['origin']);
+	}
+
+	public function testAuthorizeRendersAStandaloneErrorPage(): void {
+		$params = self::params();
+		$params['client_id'] = 'https://other.example';
+
+		$response = $this->controller($params, $this->user(), $this->createMock(TokenService::class),
+			$this->createMock(AuthCodeService::class))->authorize();
+
+		$this->assertInstanceOf(StandaloneTemplateResponse::class, $response);
+		$this->assertSame('error', $response->getTemplateName());
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 	}
 
 	public function testApproveIssuesACodeForTheCodeFlow(): void {

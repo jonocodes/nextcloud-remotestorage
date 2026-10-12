@@ -21,6 +21,7 @@ use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\StandaloneTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -32,6 +33,8 @@ use OCP\IUserSession;
  * Authorize/approve are not public pages: Nextcloud's own login, including
  * two-factor and SSO, runs first. The token endpoint is public — it is called
  * by the app's browser fetch and authenticates by code + verifier.
+ * The pages are standalone, like core's ClientFlowLogin grant page, so that
+ * logged-in page scripts such as the first-run wizard do not cover the dialog.
  * Named "Oauth", not "OAuth": routes resolve "oauth#…" to OauthController.
  */
 class OauthController extends Controller {
@@ -64,7 +67,7 @@ class OauthController extends Controller {
 			$params['code_challenge'] = (string)$oauth->codeChallenge;
 			$params['code_challenge_method'] = (string)$oauth->codeChallengeMethod;
 		}
-		$response = new TemplateResponse(Application::APP_ID, 'authorize', [
+		$response = new StandaloneTemplateResponse(Application::APP_ID, 'authorize', [
 			'origin' => $oauth->origin(),
 			'action' => $this->urlGenerator->linkToRoute('remotestorage.oauth.approve'),
 			'scopes' => $oauth->scope->levels(),
@@ -107,7 +110,7 @@ class OauthController extends Controller {
 		if ($e->redirect !== null) {
 			return new RedirectResponse($e->redirect);
 		}
-		$response = new TemplateResponse(Application::APP_ID, 'error', ['code' => $e->getMessage()],
+		$response = new StandaloneTemplateResponse(Application::APP_ID, 'error', ['code' => $e->getMessage()],
 			TemplateResponse::RENDER_AS_GUEST);
 		$response->setStatus(Http::STATUS_BAD_REQUEST);
 		return $response;

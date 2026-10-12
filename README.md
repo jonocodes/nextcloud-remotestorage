@@ -75,7 +75,7 @@ Nextcloud's public extension points. Every file operation stays with Nextcloud's
 | Piece | Extension point | What it does |
 | --- | --- | --- |
 | WebFinger | `OCP\Http\WellKnown\IHandler` | Answers `acct:user@host` with the storage URL (`/remote.php/dav/files/<user>/remoteStorage`), the OAuth URLs, and the PKCE support (`S256`). |
-| OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2) and the PKCE code grant's consent step. `client_id` must be the origin of `redirect_uri`. |
+| OAuth dialog | app route `/apps/remotestorage/oauth` | Implicit grant (RFC 6749 §4.2) and the PKCE code grant's consent step. `client_id` must be the origin of `redirect_uri`. Rendered standalone, like core's client login grant page, so the first-run wizard and other apps' page scripts never cover it. |
 | OAuth token endpoint | app route `/apps/remotestorage/oauth/token` | Exchanges a one-time code plus the PKCE verifier for an `rs_…` token (RFC 6749 §3.2, spec §10.1); S256 only, single use. |
 | Login | `SabrePluginAuthInitEvent` | Accepts the app's own `rs_…` bearer tokens, for that request only (nothing is written to the session). Other bearer tokens pass through to core untouched. A rejected `rs_…` token is answered with a `WWW-Authenticate: Bearer` challenge (RFC 6750 §3), next to core's; Basic-auth requests are untouched. |
 | WebDAV plugin | `SabrePluginAddEvent` | Scope checks; folder GET → remoteStorage JSON listing (empty and missing folders list as empty; empty subfolders are not listed); PUT creates missing parents; DELETE leaves emptied parents on disk; `If-None-Match` 304 on folders; CORS; the details below. |
@@ -179,8 +179,6 @@ Signing and app store publishing come later (see Known limitations).
 
 ## Known limitations
 
-- A brand-new user's first login shows Nextcloud's first-run wizard on top of the consent page;
-  they have to close it before choosing Allow.
 - Nextcloud core still sends session cookies on every WebDAV response, including anonymous ones.
 - Many parallel PUTs into a folder that does not exist yet can still, rarely, get a 423 from
   Nextcloud core's own write (about 1 restore in 25 in [TESTING.md](TESTING.md), with the
