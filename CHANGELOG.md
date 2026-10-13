@@ -6,6 +6,8 @@ The Nextcloud app store shows each version's section as its release notes.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-13
+
 ### Fixed
 - Nextcloud's first-run wizard no longer covers the consent page (for new users, and for every
   user after a major upgrade): the OAuth consent and error pages are rendered standalone, like
