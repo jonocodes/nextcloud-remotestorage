@@ -6,7 +6,8 @@ A Nextcloud app that makes Nextcloud a [remoteStorage](https://remotestorage.io)
 Users connect any remoteStorage app with their address `user@your-nextcloud`, approve the
 access it asks for, and the app's data is stored as normal files in their Nextcloud.
 
-**Status:** early (0.3.2), not yet in the app store. Tested on Nextcloud 34 and 35, behind Apache
+**Status:** early (0.3.2), in the
+[Nextcloud app store](https://apps.nextcloud.com/apps/remotestorage). Tested on Nextcloud 34 and 35, behind Apache
 and behind nginx (with the WebFinger rewrite below), by the
 [test harness](https://github.com/jonocodes/remotestorage-nextcloud-harness) (`app/`), including
 an unmodified remoteStorage.js app connecting from two devices, syncing, editing and deleting,
@@ -15,10 +16,10 @@ and the community's [server test suite](https://github.com/remotestorage/api-tes
 
 ## For admins
 
-1. Install and enable the app (until it is in the app store, copy this repository without
-   `vendor/`, `tests/` and `.git/` to `custom_apps/remotestorage`, or extract a
-   [release](https://github.com/jonocodes/nextcloud-remotestorage/releases) tarball there):
-   `occ app:enable remotestorage`
+1. Install and enable the app from the app store (Apps → search "remoteStorage"), or with
+   `occ app:install remotestorage`. Without the app store, extract a
+   [release](https://github.com/jonocodes/nextcloud-remotestorage/releases) tarball to
+   `custom_apps/` and run `occ app:enable remotestorage`.
 2. Make sure `/.well-known/webfinger` is answered by Nextcloud **directly, without a redirect**.
    remoteStorage.js cannot follow a WebFinger redirect in a browser (its WebFinger library
    fetches with `redirect: "manual"`, which browsers turn into an opaque response), whatever
@@ -175,7 +176,13 @@ The Release workflow refuses a tag that doesn't match info.xml or has no dated c
 section (`just release-check <version>`). A pre-release version (`0.4.0-beta.1`) is marked as a
 pre-release. Each GitHub release carries `remotestorage.tar.gz`, so the latest is always at
 `https://github.com/jonocodes/nextcloud-remotestorage/releases/latest/download/remotestorage.tar.gz`.
-Signing and app store publishing come later (see Known limitations).
+
+Then publish it to the app store by hand: `just store-sign 0.4.0` downloads that release's
+tarball, checks its version, and prints the Download URL and Signature to paste into
+<https://apps.nextcloud.com/developer/apps/releases/new>. It signs with the code-signing key at
+`~/.nextcloud/certificates/remotestorage.key` (or `$NC_CERT_DIR`), which is never in the repo,
+and needs `openssl` (`nix-shell -p openssl` here). The signature covers that exact file, so
+never replace a published release's tarball.
 
 ## Known limitations
 
@@ -184,7 +191,6 @@ Signing and app store publishing come later (see Known limitations).
   Nextcloud core's own write (about 1 restore in 25 in [TESTING.md](TESTING.md), with the
   default database file locking); the app creates the missing folders safely, and a retry
   succeeds.
-- Not yet in the app store (needs a signing certificate).
 
 ## License
 

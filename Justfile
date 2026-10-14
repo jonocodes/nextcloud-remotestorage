@@ -84,3 +84,21 @@ release-tag:
     just release-check "$v"
     git tag -a "v$v" -m "remoteStorage $v"
     echo "Tagged v$v. Publish with: git push origin v$v"
+
+# Sign a published GitHub release's tarball for the App Store; prints the Download URL and Signature
+# for https://apps.nextcloud.com/developer/apps/releases/new (needs openssl and the signing key)
+store-sign version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    v='{{version}}'
+    key="${NC_CERT_DIR:-$HOME/.nextcloud/certificates}/remotestorage.key"
+    url="https://github.com/jonocodes/nextcloud-remotestorage/releases/download/v$v/remotestorage.tar.gz"
+    fail() { echo "store-sign: $*" >&2; exit 1; }
+    [[ -r $key ]] || fail "no signing key at $key"
+    tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL -o "$tmp/remotestorage.tar.gz" "$url" || fail "no release asset at $url"
+    got=$(tar -xzOf "$tmp/remotestorage.tar.gz" remotestorage/appinfo/info.xml | sed -n 's:.*<version>\(.*\)</version>.*:\1:p')
+    [[ $got == "$v" ]] || fail "release tarball says $got, not $v"
+    echo "Download:  $url"
+    echo "Signature:"
+    openssl dgst -sha512 -sign "$key" "$tmp/remotestorage.tar.gz" | openssl base64
